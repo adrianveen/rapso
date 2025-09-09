@@ -1,0 +1,26 @@
+# Node modules
+node_modules/
+
+# Python virtual environments
+venv/
+env/
+.venv/
+
+# Pycache
+__pycache__/
+*.py[cod]
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# macOS
+.DS_Store
+
+# Docker
+*.env
+
+# Ignore compiled models and assets
+app/public/build/
+backend/generated/
+worker/models/
