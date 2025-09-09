@@ -6,21 +6,21 @@ Rapso PDP block — renders a small button and modal for uploading a photo and h
 {{ 'rapso-pdp.js'  | asset_url | script_tag }}
 
 <div class="rapso-block" data-rapso-block data-customer-id="{{ customer.id }}">
-  <button class="rapso-btn" type="button">Try on with Rapso</button>
-  <div class="rapso-modal" hidden>
+  <button class="rapso-btn" type="button">{{ block.settings.button_label | default: 'Try on with Rapso' | escape }}</button>
+  <div class="rapso-modal" hidden role="dialog" aria-modal="true" aria-labelledby="rapso-title-{{ block.id }}">
     <div class="rapso-modal__dialog">
       <div class="rapso-modal__header">
-        <div class="rapso-title">Try on with Rapso</div>
+        <div class="rapso-title" id="rapso-title-{{ block.id }}">Try on with Rapso</div>
         <button class="rapso-close" type="button" aria-label="Close">×</button>
       </div>
       <div class="rapso-modal__body">
         <div class="rapso-field">
-          <label>Photo (single, full body)</label>
-          <input type="file" accept="image/*" />
+          <label for="rapso-file-{{ block.id }}">Photo (single, full body)</label>
+          <input id="rapso-file-{{ block.id }}" type="file" accept="image/*" />
         </div>
         <div class="rapso-field">
-          <label>Height (cm)</label>
-          <input type="number" min="100" max="250" step="1" placeholder="170" />
+          <label for="rapso-height-{{ block.id }}">Height (cm)</label>
+          <input id="rapso-height-{{ block.id }}" type="number" min="100" max="250" step="1" placeholder="170" />
         </div>
         <div class="rapso-actions">
           <button class="rapso-submit" type="button">Upload</button>

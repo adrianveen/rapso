@@ -10,7 +10,8 @@
   border-radius: 999px;
   cursor: pointer;
 }
-.rapso-btn:hover { opacity: 0.9; }
+.rapso-btn:hover { opacity: 0.92; }
+.rapso-btn:focus-visible { outline: 2px solid #4c9ffe; outline-offset: 2px; }
 .rapso-modal[hidden] { display: none !important; }
 .rapso-modal {
   position: fixed; inset: 0; z-index: 99999;
@@ -26,13 +27,21 @@
 }
 .rapso-modal__header { display:flex; align-items:center; justify-content:space-between; padding: 14px 16px; border-bottom: 1px solid #eee; }
 .rapso-title { font-weight: 600; font-size: 16px; }
-.rapso-close { background:none; border:0; font-size:22px; line-height:1; cursor:pointer; }
+.rapso-close { background:none; border:0; font-size:22px; line-height:1; cursor:pointer; border-radius:6px; }
+.rapso-close:hover { background: rgba(0,0,0,0.05); }
+.rapso-close:focus-visible { outline: 2px solid #4c9ffe; outline-offset: 2px; }
 .rapso-modal__body { padding: 14px 16px; }
 .rapso-field { margin-bottom: 10px; }
 .rapso-field label { display:block; font-size: 12px; color:#666; margin-bottom: 6px; }
 .rapso-field input[type="number"], .rapso-field input[type="file"] { width:100%; }
 .rapso-actions { display:flex; gap: 8px; margin-top: 8px; }
 .rapso-submit { background:#111; color:#fff; border:0; border-radius:8px; padding:10px 14px; cursor:pointer; font-size:14px; }
+.rapso-submit:hover { opacity: 0.92; }
+.rapso-submit:focus-visible { outline: 2px solid #4c9ffe; outline-offset: 2px; }
+.rapso-submit[disabled] { opacity: 0.6; cursor: not-allowed; }
 .rapso-status { margin-top:10px; font-size: 13px; color: #333; }
 .rapso-status--error { color: #b00020; }
 
+@media (max-height: 540px) {
+  .rapso-modal__dialog { max-height: 92vh; overflow: auto; }
+}

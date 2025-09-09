@@ -12,9 +12,59 @@
       var customerId = root.getAttribute('data-customer-id');
       var activeJobToken = 0; // incremented per upload to guard DOM updates
       var pollHandle = null;
+      var lastActiveElement = null;
+      var prevBodyOverflow = '';
+      var keydownHandler = null;
 
-      function show(){ modal.hidden = false; }
-      function hide(){ modal.hidden = true; }
+      function focusables() {
+        try {
+          return Array.prototype.slice.call(
+            modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')
+          );
+        } catch (e) { return []; }
+      }
+
+      function show(){
+        if (!modal) return;
+        lastActiveElement = document.activeElement;
+        prevBodyOverflow = document.body && document.body.style ? document.body.style.overflow : '';
+        if (document.body && document.body.style) document.body.style.overflow = 'hidden';
+        modal.hidden = false;
+        // After open, focus first focusable element
+        try {
+          var f = focusables();
+          if (f && f.length) { f[0].focus(); }
+        } catch (e) {}
+        // Keydown handler: Esc to close, Tab to trap
+        keydownHandler = function(ev){
+          if (modal.hidden) return;
+          if (ev.key === 'Escape' || ev.key === 'Esc') {
+            ev.preventDefault();
+            hide();
+            return;
+          }
+          if (ev.key === 'Tab') {
+            var items = focusables();
+            if (!items.length) return;
+            var first = items[0];
+            var last = items[items.length - 1];
+            var active = document.activeElement;
+            if (ev.shiftKey) {
+              if (active === first || !modal.contains(active)) { last.focus(); ev.preventDefault(); }
+            } else {
+              if (active === last || !modal.contains(active)) { first.focus(); ev.preventDefault(); }
+            }
+          }
+        };
+        document.addEventListener('keydown', keydownHandler, true);
+      }
+      function hide(){
+        if (!modal) return;
+        modal.hidden = true;
+        if (document.body && document.body.style) document.body.style.overflow = prevBodyOverflow || '';
+        if (keydownHandler) { try { document.removeEventListener('keydown', keydownHandler, true); } catch(e) {} keydownHandler = null; }
+        try { if (lastActiveElement && lastActiveElement.focus) lastActiveElement.focus(); } catch (e) {}
+      }
       btn && btn.addEventListener('click', show);
       close && close.addEventListener('click', hide);
       modal && modal.addEventListener('click', function(e){ if(e.target===modal) hide(); });
@@ -70,7 +120,7 @@
             if(!(ur2.status >= 200 && ur2.status < 300)) { status.textContent = 'Upload failed'; status.classList.add('rapso-status--error'); return; }
           }
           // 3) Commit
-          var commitRes = await fetch('/apps/rapso/fit/commit?shop=' + encodeURIComponent(window.Shopify && Shopify.shop || ''), {
+          var commitRes = await fetch('/apps/rapso/fit/commit?shop=' + encodeURIComponent((window.Shopify && Shopify.shop) || ''), {
             method: 'POST', headers: { 'content-type':'application/json' },
             body: JSON.stringify({ object_keys: [objectKey], height_cm: heightInput.value ? Number(heightInput.value) : undefined, customer_id: customerId || undefined })
           });

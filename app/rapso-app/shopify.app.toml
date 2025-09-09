@@ -2,7 +2,7 @@
 
 client_id = "125e1e90b66977c91b3f17bb6deb65ff"
 name = "rapso-app"
-application_url = "https://pty-nursing-trembl-conventions.trycloudflare.com"
+application_url = "https://lo-rooms-winning-fit.trycloudflare.com"
 embedded = true
 handle = "rapso-app"
 
@@ -26,12 +26,12 @@ api_version = "2025-07"
 scopes = "write_products,read_customers,write_customers"
 
 [auth]
-redirect_urls = ["https://pty-nursing-trembl-conventions.trycloudflare.com/auth/callback", "https://pty-nursing-trembl-conventions.trycloudflare.com/auth/shopify/callback", "https://pty-nursing-trembl-conventions.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://lo-rooms-winning-fit.trycloudflare.com/auth/callback", "https://lo-rooms-winning-fit.trycloudflare.com/auth/shopify/callback", "https://lo-rooms-winning-fit.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
 
 [app_proxy]
-url = "https://pty-nursing-trembl-conventions.trycloudflare.com/proxy"
+url = "https://lo-rooms-winning-fit.trycloudflare.com/proxy"
 subpath = "rapso"
 prefix = "apps"
