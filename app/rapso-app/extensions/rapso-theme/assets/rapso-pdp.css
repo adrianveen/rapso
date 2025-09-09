@@ -1,0 +1,38 @@
+/* Small, modern style */
+.rapso-btn {
+  appearance: none;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: #111;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  padding: 10px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.rapso-btn:hover { opacity: 0.9; }
+.rapso-modal[hidden] { display: none !important; }
+.rapso-modal {
+  position: fixed; inset: 0; z-index: 99999;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+}
+.rapso-modal__dialog {
+  width: min(92vw, 420px);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+.rapso-modal__header { display:flex; align-items:center; justify-content:space-between; padding: 14px 16px; border-bottom: 1px solid #eee; }
+.rapso-title { font-weight: 600; font-size: 16px; }
+.rapso-close { background:none; border:0; font-size:22px; line-height:1; cursor:pointer; }
+.rapso-modal__body { padding: 14px 16px; }
+.rapso-field { margin-bottom: 10px; }
+.rapso-field label { display:block; font-size: 12px; color:#666; margin-bottom: 6px; }
+.rapso-field input[type="number"], .rapso-field input[type="file"] { width:100%; }
+.rapso-actions { display:flex; gap: 8px; margin-top: 8px; }
+.rapso-submit { background:#111; color:#fff; border:0; border-radius:8px; padding:10px 14px; cursor:pointer; font-size:14px; }
+.rapso-status { margin-top:10px; font-size: 13px; color: #333; }
+.rapso-status--error { color: #b00020; }
+

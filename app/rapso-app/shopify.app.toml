@@ -1,0 +1,37 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "125e1e90b66977c91b3f17bb6deb65ff"
+name = "rapso-app"
+application_url = "https://germany-scripts-realtor-disease.trycloudflare.com"
+embedded = true
+handle = "rapso-app"
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2025-07"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_products,read_customers,write_customers"
+
+[auth]
+redirect_urls = ["https://germany-scripts-realtor-disease.trycloudflare.com/auth/callback", "https://germany-scripts-realtor-disease.trycloudflare.com/auth/shopify/callback", "https://germany-scripts-realtor-disease.trycloudflare.com/api/auth/callback"]
+
+[pos]
+embedded = false
+
+[app_proxy]
+url = "https://germany-scripts-realtor-disease.trycloudflare.com/proxy"
+subpath = "rapso"
+prefix = "apps"

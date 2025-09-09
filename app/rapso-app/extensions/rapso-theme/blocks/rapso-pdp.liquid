@@ -1,0 +1,42 @@
+{% comment %}
+Rapso PDP block — renders a small button and modal for uploading a photo and height.
+{% endcomment %}
+
+{{ 'rapso-pdp.css' | asset_url | stylesheet_tag }}
+{{ 'rapso-pdp.js'  | asset_url | script_tag }}
+
+<div class="rapso-block" data-rapso-block data-customer-id="{{ customer.id }}">
+  <button class="rapso-btn" type="button">Try on with Rapso</button>
+  <div class="rapso-modal" hidden>
+    <div class="rapso-modal__dialog">
+      <div class="rapso-modal__header">
+        <div class="rapso-title">Try on with Rapso</div>
+        <button class="rapso-close" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="rapso-modal__body">
+        <div class="rapso-field">
+          <label>Photo (single, full body)</label>
+          <input type="file" accept="image/*" />
+        </div>
+        <div class="rapso-field">
+          <label>Height (cm)</label>
+          <input type="number" min="100" max="250" step="1" placeholder="170" />
+        </div>
+        <div class="rapso-actions">
+          <button class="rapso-submit" type="button">Upload</button>
+        </div>
+        <div class="rapso-status" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Rapso Try-on",
+  "target": "section",
+  "settings": [
+    { "type": "text", "id": "button_label", "label": "Button label", "default": "Try on with Rapso" }
+  ]
+}
+{% endschema %}

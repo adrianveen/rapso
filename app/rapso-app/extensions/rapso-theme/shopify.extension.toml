@@ -1,0 +1,6 @@
+name = "rapso-theme"
+type = "theme"
+
+# This extension provides a PDP block with a small UI to upload a photo
+# and height, calling the app proxy to create a modeling job.
+

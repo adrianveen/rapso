@@ -1,0 +1,114 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+}
+
+// Rapso domain models (initial draft)
+
+// Deprecated early models kept temporarily for backward-compat
+model Customer {
+  id             String       @id @default(cuid())
+  shop           String
+  shopCustomerId String
+  heightCm       Float?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  models         ModelAsset[]
+
+  @@index([shop, shopCustomerId])
+}
+
+model ModelAsset {
+  id          String   @id @default(cuid())
+  customer    Customer @relation(fields: [customerId], references: [id])
+  customerId  String
+  inputKey    String
+  outputKey   String?
+  status      String   // queued | processing | completed | failed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  jobs        Job[]
+}
+
+model Job {
+  id           String      @id @default(cuid())
+  status       String      // queued | processing | completed | failed
+  error        String?
+  modelAsset   ModelAsset? @relation(fields: [modelAssetId], references: [id])
+  modelAssetId String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+// Fit Profile v1 models
+model CustomerProfile {
+  id                String   @id @default(cuid())
+  shopDomain        String
+  shopCustomerId    String
+  heightCentimetres Float?
+  activeModelRunId  String?
+  lastUpdatedAt     DateTime @updatedAt
+
+  // Ensure each (shopDomain, shopCustomerId) pair is unique so we can upsert by it
+  @@unique([shopDomain, shopCustomerId])
+}
+
+model ModelRun {
+  id               String   @id @default(cuid())
+  shopDomain       String
+  shopCustomerId   String?
+  sessionId        String?
+  status           String   // queued | running | succeeded | failed | replaced
+  modelVersion     Int      @default(1)
+  meshObjectKey    String?
+  previewImageKey  String?
+  createdAt        DateTime @default(now())
+  replacedByRunId  String?
+
+  @@index([shopDomain, shopCustomerId])
+}
+
+model GuestSession {
+  id               String   @id @default(cuid())
+  browserSessionId String
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
+}
+
+model Asset {
+  id          String   @id @default(cuid())
+  objectKey   String   @unique
+  kind        String   // photo | mesh | preview
+  sha256      String?
+  bytes       Int?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?
+}
