@@ -1,0 +1,13 @@
+{
+  "editor.formatOnSave": true,
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+  "files.eol": "\n",
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.venv": true,
+    "app/node_modules": true
+  },
+  "python.analysis.typeCheckingMode": "basic",
+  "python.defaultInterpreterPath": "python3",
+  "terminal.integrated.defaultProfile.linux": "bash"
+}

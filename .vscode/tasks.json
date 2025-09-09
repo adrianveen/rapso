@@ -1,0 +1,41 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "compose:cpu up",
+      "type": "shell",
+      "command": "docker compose --profile cpu up --build",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "compose:cpu up -d",
+      "type": "shell",
+      "command": "docker compose --profile cpu up -d --build"
+    },
+    {
+      "label": "compose:down",
+      "type": "shell",
+      "command": "docker compose down"
+    },
+    {
+      "label": "backend:logs",
+      "type": "shell",
+      "command": "docker compose logs -f backend",
+      "problemMatcher": []
+    },
+    {
+      "label": "worker:logs",
+      "type": "shell",
+      "command": "docker compose logs -f worker",
+      "problemMatcher": []
+    },
+    {
+      "label": "app:dev",
+      "type": "shell",
+      "command": "pnpm --dir app dev",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,28 +1,47 @@
 version: "3.9"
+
 services:
   app:
+    # optional container for parity; in dev you will usually run `shopify app dev` locally
     build: ./app
-    ports:
-      - "3000:3000"
-    environment:
-      SHOPIFY_APP_URL: http://localhost:3000
-    depends_on:
-      - backend
+    ports: ["3000:3000"]
+    env_file: [app/.env]
+    volumes:
+      - ./app:/app
+    profiles: ["full"]
+
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
-    environment:
-      WORKER_URL: http://worker:9000
-  worker:
-    build: ./worker
-    ports:
-      - "9000:9000"
-    runtime: nvidia
-    environment:
-      CUDA_VISIBLE_DEVICES: "0"
+    ports: ["8000:8000"]
+    env_file: [backend/.env]
+    volumes:
+      - ./backend:/app
+    profiles: ["cpu","gpu","full"]
 
-# This compose file assumes that each service has its own Dockerfile in
-# the corresponding directory.  The `worker` service is configured with
-# `runtime: nvidia` for GPU acceleration and exposes its API on port 9000.
-# Adjust ports and environment variables as needed for your setup.
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    ports: ["9000:9000"]
+    env_file: [worker/.env]
+    volumes:
+      - ./worker:/app
+    profiles: ["cpu","full"]
+
+  worker-gpu:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile.gpu
+    ports: ["9000:9000"]
+    env_file: [worker/.env]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    # Docker Desktop on Windows with WSL usually handles GPU without setting runtime
+    # uncomment if needed:
+    # runtime: nvidia
+    volumes:
+      - ./worker:/app
+    profiles: ["gpu"]

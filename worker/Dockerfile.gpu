@@ -1,0 +1,23 @@
+# CUDA 12.1 + cuDNN8 base from NVIDIA
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+# Minimal deps
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-pip python3-venv ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and install FastAPI+Uvicorn, then PyTorch cu121 wheels
+RUN python3 -m pip install --no-cache-dir --upgrade pip && \
+    python3 -m pip install --no-cache-dir \
+      fastapi uvicorn[standard] && \
+    python3 -m pip install --no-cache-dir \
+      --index-url https://download.pytorch.org/whl/cu121 \
+      torch torchvision torchaudio
+
+WORKDIR /app
+COPY . .
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9000"]

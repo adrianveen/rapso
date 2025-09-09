@@ -1,0 +1,4 @@
+# Ignore local storage and env files in backend
+data/
+.env
+

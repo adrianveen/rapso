@@ -20,6 +20,18 @@ __pycache__/
 # Docker
 *.env
 
+# Local databases and artifacts
+*.sqlite
+
+# Backend local storage (uploads/outputs) — do not commit user data
+backend/data/
+
+# Optional worker scratch space
+worker/data/
+
+# Remix build output (already ignored in app/public/build/, keep here if paths change)
+
+
 # Ignore compiled models and assets
 app/public/build/
 backend/generated/

@@ -10,6 +10,8 @@
       var submit = root.querySelector('.rapso-submit');
       var status = root.querySelector('.rapso-status');
       var customerId = root.getAttribute('data-customer-id');
+      var activeJobToken = 0; // incremented per upload to guard DOM updates
+      var pollHandle = null;
 
       function show(){ modal.hidden = false; }
       function hide(){ modal.hidden = true; }
@@ -17,9 +19,21 @@
       close && close.addEventListener('click', hide);
       modal && modal.addEventListener('click', function(e){ if(e.target===modal) hide(); });
 
+      function clearViewer(){
+        // Remove any existing model viewers inside this block
+        try { Array.prototype.slice.call(root.querySelectorAll('model-viewer')).forEach(function(n){ n.remove(); }); } catch(e) {}
+      }
+
       async function createJob(){
         try {
+          // New upload: mint token and cancel any previous pollers
+          activeJobToken += 1;
+          var myToken = activeJobToken;
+          if (pollHandle) { try { clearInterval(pollHandle); } catch(e) {} pollHandle = null; }
+          // Clear any previous viewer and reset UI
+          clearViewer();
           status.textContent = 'Uploading…'; status.classList.remove('rapso-status--error');
+          if (submit) submit.disabled = true;
           var f = fileInput.files && fileInput.files[0];
           if(!f){ status.textContent = 'Please choose a photo'; return; }
           // Save height for logged-in customers via proxy (with confirm)
@@ -64,15 +78,19 @@
           var commit = await commitRes.json();
           var jobId = commit.job_id;
           status.textContent = 'Job created. Processing…';
-          // Poll job status via proxy
+          // Poll job status via proxy (guarded by token)
           var attempts = 0;
-          var interval = setInterval(async function(){
+          pollHandle = setInterval(async function(){
             attempts++;
             try {
+              // If a newer upload started, stop this poller
+              if (myToken !== activeJobToken) { clearInterval(pollHandle); pollHandle = null; return; }
               var r = await fetch('/apps/rapso/fit/status?job_id=' + jobId);
               var j = await r.json();
               if(j.status === 'completed' || j.status === 'succeeded'){
-                clearInterval(interval);
+                // Ensure this is still the active upload
+                if (myToken !== activeJobToken) { clearInterval(pollHandle); pollHandle = null; return; }
+                clearInterval(pollHandle); pollHandle = null;
                 status.textContent = 'Model ready!';
                 try {
                   // derive a storefront-accessible URL for the asset
@@ -88,6 +106,8 @@
                     }
                   }
                   if (src) {
+                    // Only keep a single viewer for the active upload
+                    clearViewer();
                     ensureModelViewer();
                     var viewer = document.createElement('model-viewer');
                     viewer.setAttribute('src', src);
@@ -97,16 +117,19 @@
                     viewer.setAttribute('exposure','1.0');
                     status.after(viewer);
                   }
+                  if (submit) submit.disabled = false;
                 } catch(e) {}
               } else if(j.status === 'failed'){
-                clearInterval(interval);
+                clearInterval(pollHandle); pollHandle = null;
                 status.textContent = 'Processing failed'; status.classList.add('rapso-status--error');
+                if (submit) submit.disabled = false;
               }
             } catch(e) {}
-            if(attempts>60){ clearInterval(interval); status.textContent = 'Timed out'; status.classList.add('rapso-status--error'); }
+            if(attempts>60){ if (pollHandle) { clearInterval(pollHandle); pollHandle = null; } status.textContent = 'Timed out'; status.classList.add('rapso-status--error'); if (submit) submit.disabled = false; }
           }, 2000);
         } catch (e) {
           status.textContent = 'Unexpected error'; status.classList.add('rapso-status--error');
+          if (submit) submit.disabled = false;
         }
       }
       submit && submit.addEventListener('click', createJob);

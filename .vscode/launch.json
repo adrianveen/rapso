@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Shopify app dev",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm --dir app dev",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Backend logs",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose logs -f backend"
+    },
+    {
+      "name": "Worker logs",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose logs -f worker"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Start backend + worker logs",
+      "configurations": ["Backend logs", "Worker logs"]
+    }
+  ]
+}
