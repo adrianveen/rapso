@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 # Optional S3 (R2-compatible) client
 import boto3
 from botocore.client import Config
+from sqlalchemy import create_engine, Column, String, DateTime, Float, Text
+from sqlalchemy.orm import sessionmaker, declarative_base
 import logging
 import httpx
 
@@ -106,31 +108,43 @@ def presign_url(key: str, expires: int = 3600) -> Optional[str]:
     return None
 
 
-# --- In-memory job store (dev) ---
-class Job(BaseModel):
-    id: str
-    status: str
-    created_at: datetime
-    input_key: Optional[str] = None
-    output_key: Optional[str] = None
-    height_cm: Optional[float] = None
-    error: Optional[str] = None
+# --- SQLite persistence (no-cost) ---
+DB_PATH = os.getenv("SQLITE_PATH", os.path.join(STATIC_DIR, "dev.sqlite"))
+engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+Base = declarative_base()
 
+class JobORM(Base):
+    __tablename__ = "jobs"
+    id = Column(String, primary_key=True)
+    status = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    input_key = Column(String)
+    output_key = Column(String)
+    height_cm = Column(Float)
+    error = Column(Text)
 
-JOBS: dict[str, Job] = {}
+class AssetORM(Base):
+    __tablename__ = "assets"
+    object_key = Column(String, primary_key=True)
+    kind = Column(String)  # photo | mesh
+    created_at = Column(DateTime, nullable=False)
+
+Base.metadata.create_all(engine)
 
 
 def _simulate_worker(job_id: str):
     # Simulate processing delay
     time.sleep(2)
     # Mark as completed; real worker would write output to storage
-    job = JOBS.get(job_id)
-    if not job:
-        return
-    job.status = "completed"
-    # Placeholder output; viewer integration comes later
-    job.output_key = _make_key("outputs", f"{job_id}.glb")
-    # For local dev, ensure a valid GLB exists so viewers render
+    with SessionLocal() as db:
+        job = db.get(JobORM, job_id)
+        if not job:
+            return
+        job.status = "completed"
+        job.output_key = _make_key("outputs", f"{job_id}.glb")
+        db.add(job)
+        db.commit()
     if not _s3:
         _ensure_placeholder_glb(job.output_key)
     _forward_app_callback(job_id, job.output_key)
@@ -202,9 +216,12 @@ def _enqueue_worker(job_id: str, input_key: str, height_cm: Optional[float]):
                 },
             )
         # Mark as processing while worker runs
-        job = JOBS.get(job_id)
-        if job:
-            job.status = "processing"
+        with SessionLocal() as db:
+            job = db.get(JobORM, job_id)
+            if job:
+                job.status = "processing"
+                db.add(job)
+                db.commit()
     except Exception as e:
         logger.warning("Failed to enqueue worker; fallback to simulator: %s", e)
         _simulate_worker(job_id)
@@ -216,17 +233,20 @@ def _fail_safe(job_id: str, delay_seconds: int = 12):
     Dev convenience to avoid dangling jobs if callback fails.
     """
     time.sleep(delay_seconds)
-    job = JOBS.get(job_id)
-    if not job:
-        return
-    if job.status in {"queued", "processing"}:
-        logger.warning("Fail-safe completing job %s due to timeout", job_id)
-        job.status = "completed"
-        if not job.output_key:
-            job.output_key = _make_key("outputs", f"{job.id}.glb")
-            if not _s3:
-                placeholder = b"placeholder glb content (replace with real .glb)"
-                put_object(job.output_key, placeholder, content_type="model/gltf-binary")
+    with SessionLocal() as db:
+        job = db.get(JobORM, job_id)
+        if not job:
+            return
+        if job.status in {"queued", "processing"}:
+            logger.warning("Fail-safe completing job %s due to timeout", job_id)
+            job.status = "completed"
+            if not job.output_key:
+                job.output_key = _make_key("outputs", f"{job.id}.glb")
+                if not _s3:
+                    placeholder = b"placeholder glb content (replace with real .glb)"
+                    put_object(job.output_key, placeholder, content_type="model/gltf-binary")
+            db.add(job)
+            db.commit()
 
 
 @app.post("/uploads")
@@ -243,14 +263,10 @@ async def create_upload(
     put_object(input_key, raw, content_type=file.content_type or "application/octet-stream")
 
     # Create job
-    job = Job(
-        id=job_id,
-        status="queued",
-        created_at=datetime.now(timezone.utc),
-        input_key=input_key,
-        height_cm=height_cm,
-    )
-    JOBS[job_id] = job
+    with SessionLocal() as db:
+        db.add(AssetORM(object_key=input_key, kind="photo", created_at=datetime.now(timezone.utc)))
+        db.add(JobORM(id=job_id, status="queued", created_at=datetime.now(timezone.utc), input_key=input_key, height_cm=height_cm))
+        db.commit()
 
     # Simulate processing (replace with call to worker service)
     # Dispatch to worker if configured; else simulate
@@ -263,9 +279,10 @@ async def create_upload(
 
 @app.get("/jobs/{job_id}")
 def get_job(job_id: str):
-    job = JOBS.get(job_id)
-    if not job:
-        return JSONResponse({"error": "not_found"}, status_code=404)
+    with SessionLocal() as db:
+        job = db.get(JobORM, job_id)
+        if not job:
+            return JSONResponse({"error": "not_found"}, status_code=404)
     # In local mode, ensure a placeholder exists for completed jobs
     if job.output_key and not _s3 and job.status == "completed":
         path = os.path.join(STATIC_DIR, job.output_key)
@@ -285,24 +302,24 @@ def get_job(job_id: str):
 
 @app.post("/jobs/{job_id}/callback")
 def job_callback(job_id: str, payload: dict):
-    # For real worker callbacks
-    job = JOBS.get(job_id)
-    if not job:
-        return JSONResponse({"error": "not_found"}, status_code=404)
-
-    status = payload.get("status")
-    job.status = status or job.status
-    job.error = payload.get("error")
-    output_key = payload.get("output_key")
-    if output_key:
-        job.output_key = output_key
-    # Ensure a local file exists when completed (dev mode)
+    with SessionLocal() as db:
+        job = db.get(JobORM, job_id)
+        if not job:
+            return JSONResponse({"error": "not_found"}, status_code=404)
+        status = payload.get("status")
+        job.status = status or job.status
+        job.error = payload.get("error")
+        output_key = payload.get("output_key")
+        if output_key:
+            job.output_key = output_key
+            db.add(AssetORM(object_key=output_key, kind="mesh", created_at=datetime.now(timezone.utc)))
+        db.add(job)
+        db.commit()
     if job.status == "completed":
         if not job.output_key:
             job.output_key = _make_key("outputs", f"{job.id}.glb")
         if not _s3:
             _ensure_placeholder_glb(job.output_key)
-    # Forward to app callback if configured
     _forward_app_callback(job_id, job.output_key)
     return {"ok": True}
 
@@ -362,6 +379,12 @@ def presign(req: PresignRequest):
 async def dev_upload(file: UploadFile = File(...), key: str = Form(...)):
     raw = await file.read()
     put_object(key, raw, content_type=file.content_type or "application/octet-stream")
+    try:
+        with SessionLocal() as db:
+            db.add(AssetORM(object_key=key, kind="photo", created_at=datetime.now(timezone.utc)))
+            db.commit()
+    except Exception:
+        pass
     return {"ok": True, "object_key": key}
 
 
@@ -373,17 +396,12 @@ class EnqueueRequest(BaseModel):
 
 @app.post("/enqueue")
 def enqueue_job(req: EnqueueRequest, background_tasks: BackgroundTasks):
-    job = Job(
-        id=req.job_id,
-        status="queued",
-        created_at=datetime.now(timezone.utc),
-        input_key=req.input_key,
-        height_cm=req.height_cm,
-    )
-    JOBS[req.job_id] = job
+    with SessionLocal() as db:
+        db.add(JobORM(id=req.job_id, status="queued", created_at=datetime.now(timezone.utc), input_key=req.input_key, height_cm=req.height_cm))
+        db.commit()
     background_tasks.add_task(_enqueue_worker, req.job_id, req.input_key, req.height_cm)
     background_tasks.add_task(_fail_safe, req.job_id)
-    return {"job_id": req.job_id, "status": job.status}
+    return {"job_id": req.job_id, "status": "queued"}
 
 
 # Dev-only static file serving for local storage

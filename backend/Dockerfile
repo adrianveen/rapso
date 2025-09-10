@@ -9,7 +9,8 @@ RUN pip install --no-cache-dir \
     pydantic \
     python-multipart \
     boto3 \
-    httpx
+    httpx \
+    SQLAlchemy
 COPY . .
 # hot reload in dev is fine via --reload
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

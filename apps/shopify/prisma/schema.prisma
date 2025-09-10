@@ -112,3 +112,13 @@ model Asset {
   createdAt   DateTime @default(now())
   expiresAt   DateTime?
 }
+
+// Sizing rules per shop (global defaults for PDP suggestions)
+model SizingRules {
+  id           String   @id @default(cuid())
+  shopDomain   String   @unique
+  smallMaxCm   Int      @default(165)
+  mediumMaxCm  Int      @default(180)
+  labelsCsv    String   @default("S,M,L") // comma-separated labels
+  updatedAt    DateTime @updatedAt
+}

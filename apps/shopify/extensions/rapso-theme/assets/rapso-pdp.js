@@ -39,16 +39,30 @@
         }
       }
 
+      var ruleSmallMax = Number((root.getAttribute('data-small-max')||'').trim()) || 165;
+      var ruleMediumMax = Number((root.getAttribute('data-medium-max')||'').trim()) || 180;
+      var ruleLabels = (root.getAttribute('data-sizes-labels')||'S,M,L').split(',').map(function(s){return s.trim()});
       function computeSuggestion(cm){
         try {
-          var sMax = Number((root.getAttribute('data-small-max')||'').trim()) || 165;
-          var mMax = Number((root.getAttribute('data-medium-max')||'').trim()) || 180;
-          var labels = (root.getAttribute('data-sizes-labels')||'S,M,L').split(',').map(function(s){return s.trim()});
-          var S = labels[0] || 'S'; var M = labels[1] || 'M'; var L = labels[2] || 'L';
-          if (cm <= sMax) return S;
-          if (cm <= mMax) return M;
+          var S = ruleLabels[0] || 'S'; var M = ruleLabels[1] || 'M'; var L = ruleLabels[2] || 'L';
+          if (cm <= ruleSmallMax) return S;
+          if (cm <= ruleMediumMax) return M;
           return L;
         } catch(e) { return null; }
+      }
+
+      async function fetchSizing(){
+        try {
+          var url = '/apps/rapso/sizing';
+          var shop = getShop();
+          if (shop) url += '?shop=' + encodeURIComponent(shop);
+          var r = await fetch(url);
+          if (!r.ok) return;
+          var j = await r.json();
+          if (typeof j.small_max_cm === 'number') ruleSmallMax = j.small_max_cm;
+          if (typeof j.medium_max_cm === 'number') ruleMediumMax = j.medium_max_cm;
+          if (typeof j.labels_csv === 'string') ruleLabels = j.labels_csv.split(',').map(function(s){return s.trim()});
+        } catch (e) {}
       }
 
       function getShop(){
@@ -85,7 +99,7 @@
         if (document.body && document.body.style) document.body.style.overflow = 'hidden';
         modal.hidden = false;
         setHeightPlaceholder();
-        prefillHeight();
+        fetchSizing().then(prefillHeight);
         // After open, focus first focusable element
         try {
           var f = focusables();
