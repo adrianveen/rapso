@@ -6,6 +6,10 @@ down:
 	docker compose down
 logs:
 	docker compose logs -f
+health:
+	bash scripts/health.sh
+check-no-store:
+	@SHOP_DOMAIN=$${SHOP_DOMAIN} CUSTOMER_ID=$${CUSTOMER_ID} bash scripts/check_no_store.sh
 app-install:
 	cd apps/shopify && pnpm install
 app:
@@ -18,4 +22,4 @@ tunnel:
 	@if [ -z "$${PORT}" ]; then echo "Usage: make tunnel PORT=43339"; exit 1; fi; \
 	cloudflared tunnel --url http://127.0.0.1:$${PORT}
 
-.PHONY: cpu gpu down logs app app-install reauth migrate tunnel
+.PHONY: cpu gpu down logs health check-no-store app app-install reauth migrate tunnel

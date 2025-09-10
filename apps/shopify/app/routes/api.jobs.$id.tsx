@@ -8,5 +8,5 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const id = params.id as string;
   const res = await fetch(`${env.BACKEND_URL}/jobs/${id}`);
   const data = await res.json();
-  return json(data);
+  return json(data, { headers: { "cache-control": "no-store" } });
 };

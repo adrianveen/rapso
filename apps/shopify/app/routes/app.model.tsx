@@ -18,7 +18,21 @@ import { env } from "../utils/env.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
-  return json({ backendUrl: env.BACKEND_URL });
+  let backendHealthy: "ok" | "fail" | "unknown" = "unknown";
+  let worker: string | null = null;
+  try {
+    const r = await fetch(`${env.BACKEND_URL}/healthz`);
+    if (r.ok) {
+      const j = await r.json();
+      backendHealthy = "ok";
+      worker = j?.worker ?? null;
+    } else {
+      backendHealthy = "fail";
+    }
+  } catch {
+    backendHealthy = "fail";
+  }
+  return json({ backendUrl: env.BACKEND_URL, backendHealthy, worker });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -58,7 +72,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function ModelTest() {
   const fetcher = useFetcher<{ job_id?: string; status?: string }>();
-  const { backendUrl } = useLoaderData<typeof loader>();
+  const { backendUrl, backendHealthy, worker } = useLoaderData<typeof loader>();
   const [jobId, setJobId] = useState<string | null>(null);
   const [height, setHeight] = useState<string>("");
   const [status, setStatus] = useState<string>("");
@@ -133,6 +147,20 @@ export default function ModelTest() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
+              <InlineStack gap="200" align="start" blockAlign="center">
+                <Text as="span" variant="bodyMd">Backend:</Text>
+                <Text as="span" variant="bodyMd" tone={backendHealthy === "ok" ? "success" : backendHealthy === "fail" ? "critical" : undefined}>
+                  {backendHealthy}
+                </Text>
+                {typeof worker === "string" && (
+                  <>
+                    <Text as="span" variant="bodyMd">Worker:</Text>
+                    <Text as="span" variant="bodyMd" tone={worker === "ok" ? "success" : worker ? "critical" : undefined}>
+                      {worker || "n/a"}
+                    </Text>
+                  </>
+                )}
+              </InlineStack>
               <Text as="p">Upload a single photo and optional height (cm).</Text>
               {fetcher.data && (fetcher.data as any).error && (
                 <Text tone="critical" as="p">{(fetcher.data as any).error}</Text>

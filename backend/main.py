@@ -41,7 +41,22 @@ app.add_middleware(
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    worker_status = None
+    if WORKER_URL:
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                r = client.get(f"{WORKER_URL}/healthz")
+                if r.status_code == 200 and r.json().get("worker") == "ok":
+                    worker_status = "ok"
+                else:
+                    worker_status = f"bad:{r.status_code}"
+        except Exception as e:
+            worker_status = f"error:{type(e).__name__}"
+    return {
+        "ok": True,
+        "storage": "s3" if _s3 else "local",
+        "worker": worker_status,
+    }
 
 
 # --- Storage setup (R2 / S3 or local fallback) ---

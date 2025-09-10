@@ -28,8 +28,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       update: { heightCentimetres: heightCm },
       create: { shopDomain: shop, shopCustomerId: customerId, heightCentimetres: heightCm },
     });
-    return json({ ok: true, heightCm: heightCm ?? null });
+    return json(
+      { ok: true, heightCm: heightCm ?? null },
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (e: any) {
-    return json({ error: String(e?.message || e) }, { status: 500 });
+    return json(
+      { error: String(e?.message || e) },
+      { status: 500, headers: { "cache-control": "no-store" } },
+    );
   }
 };
