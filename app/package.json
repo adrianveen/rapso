@@ -1,8 +1,0 @@
-{
-  "scripts": {
-    "dev": "shopify app dev",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "format": "prettier -w ."
-  }
-}

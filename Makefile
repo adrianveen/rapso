@@ -7,13 +7,13 @@ down:
 logs:
 	docker compose logs -f
 app-install:
-	cd app/rapso-app && pnpm install
+	cd apps/shopify && pnpm install
 app:
-	cd app/rapso-app && shopify app dev
+	cd apps/shopify && shopify app dev
 reauth:
-	cd app/rapso-app && shopify app dev --reset
+	cd apps/shopify && shopify app dev --reset
 migrate:
-	pnpm --dir app/rapso-app prisma migrate dev --name quick
+	pnpm --dir apps/shopify prisma migrate dev --name quick
 tunnel:
 	@if [ -z "$${PORT}" ]; then echo "Usage: make tunnel PORT=43339"; exit 1; fi; \
 	cloudflared tunnel --url http://127.0.0.1:$${PORT}

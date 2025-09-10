@@ -43,7 +43,7 @@ Security patterns
 
 Assumed layout. If paths differ, ask for confirmation and run a project scan.
 
-* `app/rapso-app/` Shopify Remix app including Theme and Customer Account extensions
+* `apps/shopify/` Shopify Remix app including Theme and Customer Account extensions
 * `backend/` FastAPI API and queue orchestration
 * `worker/` ML pipeline and provider abstraction
 * `backend/prisma/schema.prisma` Database schema

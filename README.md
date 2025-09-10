@@ -2,13 +2,13 @@
 
 Rapso lets shoppers generate a private, featureless 3D body model from a single photo and their height, then preview fit and sizing on product pages. This repo contains:
 
-- `app/rapso-app`: Embedded Shopify app (Remix + Polaris) and a Theme App Extension (PDP block + small modal UI)
+- `apps/shopify`: Embedded Shopify app (Remix + Polaris) and a Theme App Extension (PDP block + small modal UI)
 - `backend/`: FastAPI service for uploads, presign/commit/status, asset serving
 - `worker/`: GPU/CPU service for model inference (placeholder for now)
 
 Quick Start
 - Install CLI deps (Node 20+, pnpm recommended), then: `make app-install`
-- Dev the app with tunnel: `make app` (or `shopify app dev --store <dev-store>` inside `app/rapso-app`)
+- Dev the app with tunnel: `make app` (or `shopify app dev --store <dev-store>` inside `apps/shopify`)
 - Add the “Rapso Try‑on” app block in Theme Editor (Product template) and test the PDP modal
 
 What’s Implemented
@@ -18,7 +18,7 @@ What’s Implemented
 - Privacy guards: endpoints require App Proxy HMAC and logged‑in identity; no customer IDs in the DOM
 
 Deploy (CLI)
-- From `app/rapso-app`: `shopify app deploy -f` then `shopify app release`
+- From `apps/shopify`: `shopify app deploy -f` then `shopify app release`
 - Keep temporary/tunnel URL for now; we’ll switch to a permanent HTTPS later
 
 Security & Privacy

@@ -11,6 +11,10 @@ Progress Checkpoint — current status
   - Login UX: remembers last shop domain and improved autocomplete for password managers.
   - Theme extension checks: added `locales/en.default.json` and changed JS include to `defer`.
   - Security headers: Referrer-Policy and CSP `frame-ancestors` for embedded app.
+  - Admin pages: Getting Started (`/app/getting-started`), Jobs (`/app/jobs`) listing last runs, Billing placeholder (`/app/billing`).
+  - Proxy enforcement on assets/jobs/tryon/ping and `no-store` caching for customer data.
+  - Basic anti‑abuse: rate limiting on commit (1/120s per identity) and presign (1/10s per identity) + server‑side image type/size validation.
+  - Tests: added Vitest and unit tests for `fit.height` and `fit.presign` (no network/external services).
 
 - Next Steps
   - App plumbing: run `shopify app deploy -f` and `shopify app release` per change; keep temporary URL (no permanent HTTPS yet).
@@ -19,13 +23,16 @@ Progress Checkpoint — current status
   - Migrate DB to managed Postgres; set up CI/CD migrations.
   - Add Billing (plan + metered usage) and observability (metrics, alerts).
   - Further security hardening and console/PII audit.
+  - Expand tests: add more route tests (commit/status), client integration tests for PDP logic via JSDOM.
+  - Merchant UX: add inline help in the PDP block and a landing tour in the admin.
+  - Analytics: add basic funnel metrics (try-on click → upload → model ready) behind a toggle.
 
 ================== CURRENT PROGRESS BREAK ==================
 
 ## Overview
 **Goal:** Single-photo → featureless, proportionate 3D body model → try-on.  
-**Stack in repo:** Shopify Remix app (`app/rapso-app`), FastAPI backend (`backend`), GPU/CPU worker (`worker`), Prisma (session storage), Docker Compose with profiles (cpu, gpu).  
-**Integration points present:** Shopify auth, webhooks, Prisma session storage, env validation for `BACKEND_URL` in `app/rapso-app/app/utils/env.server.ts:1`.
+**Stack in repo:** Shopify Remix app (`apps/shopify`), FastAPI backend (`backend`), GPU/CPU worker (`worker`), Prisma (session storage), Docker Compose with profiles (cpu, gpu).  
+**Integration points present:** Shopify auth, webhooks, Prisma session storage, env validation for `BACKEND_URL` in `apps/shopify/app/utils/env.server.ts:1`.
 
 ## Architecture
 - **Admin UI (Remix):** Merchant setup, testing, jobs view, billing.  
@@ -40,13 +47,13 @@ Progress Checkpoint — current status
 
 ### Baseline Plumbing
 - Shopify Admin shell: Confirm login + Polaris scaffold works (`/app` loads).  
-- Backend health checks: Wire `BACKEND_URL` (`app/rapso-app/app/utils/env.server.ts:1`) to backend service (`/healthz`).  
+- Backend health checks: Wire `BACKEND_URL` (`apps/shopify/app/utils/env.server.ts:1`) to backend service (`/healthz`).  
 - Minimal upload API: `POST /uploads` → store file to S3/R2 → create Job record (queued).  
 - Job API: `POST /jobs` (create), `GET /jobs/:id` (status), `GET /assets/:id` (serve signed URL).  
 - Admin test page: Upload image, see job status, view placeholder mesh.  
 
 ### Data Model + Queue
-- **Prisma:** Add tables in `app/rapso-app/prisma/schema.prisma:1`:  
+- **Prisma:** Add tables in `apps/shopify/prisma/schema.prisma:1`:  
   Merchant, Customer, ModelAsset, Job (status: queued/processing/completed/failed).  
 - **Backend:** Persist Jobs/Assets; worker callback `POST /jobs/:id/callback`.  
 - **Worker:** `POST /process` → starts inference, returns job id; callback on completion.  
@@ -85,7 +92,7 @@ Note (UX)
 ### Privacy, Compliance, Security
 - **PII tightness:** Store minimal user data, encrypt-at-rest, signed URLs time-limited.  
 - **Retention policy:** Auto-delete input photos after model produced.  
-- **Merchant controls:** Export/delete customer models; clear data if app uninstalled (`app/rapso-app/app/routes/webhooks.app.uninstalled.tsx:1` hook).  
+- **Merchant controls:** Export/delete customer models; clear data if app uninstalled (`apps/shopify/app/routes/webhooks.app.uninstalled.tsx:1` hook).  
 
 TODOs
 
@@ -117,18 +124,18 @@ TODOs
 ### Admin → Backend wiring
 - Add `.env` values for `BACKEND_URL`, `ASSET_BUCKET`, `ASSET_REGION`.  
 - Add backend routes in `backend/main.py:1`: `POST /uploads`, `POST /jobs`, `GET /jobs/:id`.  
-- Extend admin UI in `app/rapso-app/app/routes/app._index.tsx:1` with upload + status panel.  
+- Extend admin UI in `apps/shopify/app/routes/app._index.tsx:1` with upload + status panel.  
 
 ### DB schema
-- Extend `app/rapso-app/prisma/schema.prisma:1` with Job/Asset/Customer tables.  
-- Run `pnpm prisma migrate dev` inside `app/rapso-app`.  
+- Extend `apps/shopify/prisma/schema.prisma:1` with Job/Asset/Customer tables.  
+- Run `pnpm prisma migrate dev` inside `apps/shopify`.  
 
 ### Worker
 - Build GPU image (`worker/Dockerfile.gpu`) with CUDA + Python libs (`torch`, `smpl-models`).  
 - Implement `POST /process` in `worker/main.py:1` to accept input URL + height; write `.glb` to storage; callback.  
 
 ### Storefront
-- Scaffold theme app extension under `app/rapso-app/extensions/theme-app-extension` with a product block.  
+- Scaffold theme app extension under `apps/shopify/extensions/theme-app-extension` with a product block.  
 - Inject a modal viewer and upload trigger; call backend endpoints via a storefront-safe proxy.  
 
 ## Key Decisions (please confirm)
