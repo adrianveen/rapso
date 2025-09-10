@@ -5,7 +5,7 @@ Rapso PDP block — renders a small button and modal for uploading a photo and h
 {{ 'rapso-pdp.css' | asset_url | stylesheet_tag }}
 <script defer src="{{ 'rapso-pdp.js' | asset_url }}"></script>
 
-<div class="rapso-block" data-rapso-block data-small-max="{{ block.settings.small_max_cm }}" data-medium-max="{{ block.settings.medium_max_cm }}" data-sizes-labels="{{ block.settings.sizes_labels | escape }}">
+<div class="rapso-block" data-rapso-block data-shop="{{ shop.permanent_domain }}" data-small-max="{{ block.settings.small_max_cm }}" data-medium-max="{{ block.settings.medium_max_cm }}" data-sizes-labels="{{ block.settings.sizes_labels | escape }}">
   <button class="rapso-btn" type="button">{{ block.settings.button_label | default: 'rapso.pdp.button' | t | escape }}</button>
   <div class="rapso-modal" hidden role="dialog" aria-modal="true" aria-labelledby="rapso-title-{{ block.id }}">
     <div class="rapso-modal__dialog">

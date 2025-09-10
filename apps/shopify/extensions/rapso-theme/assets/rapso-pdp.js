@@ -51,6 +51,13 @@
         } catch(e) { return null; }
       }
 
+      function getShop(){
+        var ds = root.getAttribute('data-shop');
+        if (ds && ds.length) return ds;
+        try { if (window.Shopify && window.Shopify.shop) return window.Shopify.shop; } catch(e){}
+        return '';
+      }
+
       async function prefillHeight(){
         if (!heightInput) return;
         try {
@@ -173,7 +180,7 @@
             if(!(ur2.status >= 200 && ur2.status < 300)) { status.textContent = 'Upload failed'; status.classList.add('rapso-status--error'); return; }
           }
           // 3) Commit
-          var commitRes = await fetch('/apps/rapso/fit/commit?shop=' + encodeURIComponent((window.Shopify && Shopify.shop) || ''), {
+          var commitRes = await fetch('/apps/rapso/fit/commit?shop=' + encodeURIComponent(getShop()), {
             method: 'POST', headers: { 'content-type':'application/json' },
             body: JSON.stringify({
               object_keys: [objectKey],
