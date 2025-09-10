@@ -4,29 +4,34 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  try {
-    await authenticate.public.appProxy(request);
-  } catch {}
+  await authenticate.public.appProxy(request);
 
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop") || "";
   const form = await request.formData();
   const heightStr = form.get("height_cm");
-  const customerId = form.get("customer_id");
+  const customerIdRaw = form.get("customer_id");
+  const loggedInId = url.searchParams.get("logged_in_customer_id") || "";
+  const customerId = typeof customerIdRaw === "string" && customerIdRaw ? customerIdRaw : loggedInId;
 
-  if (typeof customerId !== "string" || !customerId) {
-    return json({ error: "Missing customer_id" }, { status: 400 });
+  if (!customerId) {
+    return json({ error: "not_logged_in" }, { status: 401 });
+  }
+  if (typeof customerIdRaw === "string" && customerIdRaw && customerIdRaw !== loggedInId) {
+    return json({ error: "forbidden" }, { status: 403 });
   }
   const heightCm = typeof heightStr === "string" && heightStr.length > 0 ? Number(heightStr) : undefined;
 
   try {
-    const existing = await prisma.customer.findFirst({ where: { shop, shopCustomerId: customerId } });
-    if (existing) {
-      await prisma.customer.update({ where: { id: existing.id }, data: { heightCm } });
-    } else {
-      await prisma.customer.create({ data: { shop, shopCustomerId: customerId, heightCm } });
-    }
-    return json({ ok: true, heightCm: heightCm ?? null });
+    await prisma.customerProfile.upsert({
+      where: { shopDomain_shopCustomerId: { shopDomain: shop, shopCustomerId: customerId } },
+      update: { heightCentimetres: heightCm },
+      create: { shopDomain: shop, shopCustomerId: customerId, heightCentimetres: heightCm },
+    });
+    return json(
+      { ok: true, heightCm: heightCm ?? null },
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (e: any) {
     return json({ error: String(e?.message || e) }, { status: 500 });
   }

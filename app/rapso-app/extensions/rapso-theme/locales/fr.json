@@ -1,0 +1,11 @@
+{
+  "rapso": {
+    "pdp": {
+      "button": "Essayer avec Rapso",
+      "title": "Essayer avec Rapso",
+      "photo_label": "Photo (unique, corps entier)",
+      "units_label": "Unités",
+      "height_label": "Taille"
+    }
+  }
+}

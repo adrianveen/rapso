@@ -5,9 +5,7 @@ import { env } from "../utils/env.server";
 // Fallback (when App Proxy URL points to app root instead of /proxy)
 // Handles GET /assets/* and streams from backend /assets/*
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  try {
-    await authenticate.public.appProxy(request);
-  } catch {}
+  await authenticate.public.appProxy(request);
   const rest = params["*"] || "";
   const upstream = `${env.BACKEND_URL}/assets/${rest}`;
   const res = await fetch(upstream);

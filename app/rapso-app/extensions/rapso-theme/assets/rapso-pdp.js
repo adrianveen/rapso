@@ -7,9 +7,10 @@
       var close = root.querySelector('.rapso-close');
       var fileInput = root.querySelector('input[type="file"]');
       var heightInput = root.querySelector('input[type="number"]');
+      var unitsSelect = root.querySelector('.rapso-units');
       var submit = root.querySelector('.rapso-submit');
       var status = root.querySelector('.rapso-status');
-      var customerId = root.getAttribute('data-customer-id');
+      // No customerId in DOM; identity handled by App Proxy on server
       var activeJobToken = 0; // incremented per upload to guard DOM updates
       var pollHandle = null;
       var lastActiveElement = null;
@@ -24,12 +25,45 @@
         } catch (e) { return []; }
       }
 
+      function toInches(cm){ return cm / 2.54; }
+      function toCm(inches){ return inches * 2.54; }
+
+      function setHeightPlaceholder(){
+        if (!heightInput || !unitsSelect) return;
+        if (unitsSelect.value === 'in') {
+          heightInput.placeholder = '67';
+          heightInput.min = 40; heightInput.max = 100; heightInput.step = 1;
+        } else {
+          heightInput.placeholder = '170';
+          heightInput.min = 100; heightInput.max = 250; heightInput.step = 1;
+        }
+      }
+
+      async function prefillHeight(){
+        if (!heightInput) return;
+        try {
+          var r = await fetch('/apps/rapso/fit/height');
+          if (r.ok) {
+            var j = await r.json();
+            if (typeof j.height_cm === 'number') {
+              if (unitsSelect && unitsSelect.value === 'in') {
+                heightInput.value = String(Math.round(toInches(j.height_cm)));
+              } else {
+                heightInput.value = String(Math.round(j.height_cm));
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
       function show(){
         if (!modal) return;
         lastActiveElement = document.activeElement;
         prevBodyOverflow = document.body && document.body.style ? document.body.style.overflow : '';
         if (document.body && document.body.style) document.body.style.overflow = 'hidden';
         modal.hidden = false;
+        setHeightPlaceholder();
+        prefillHeight();
         // After open, focus first focusable element
         try {
           var f = focusables();
@@ -85,15 +119,19 @@
           status.textContent = 'Uploading…'; status.classList.remove('rapso-status--error');
           if (submit) submit.disabled = true;
           var f = fileInput.files && fileInput.files[0];
+          var MAX_BYTES = 15 * 1024 * 1024; // 15MB cap
           if(!f){ status.textContent = 'Please choose a photo'; return; }
+          if(!(f.type && /^image\//i.test(f.type))){ status.textContent = 'File must be an image'; status.classList.add('rapso-status--error'); if (submit) submit.disabled = false; return; }
+          if(f.size > MAX_BYTES){ status.textContent = 'Image too large (max 15MB)'; status.classList.add('rapso-status--error'); if (submit) submit.disabled = false; return; }
           // Save height for logged-in customers via proxy (with confirm)
-          if (customerId && heightInput.value) {
+          if (heightInput.value) {
             try {
               var confirmSave = confirm('Save your height to your profile?');
               if (confirmSave) {
                 var saveFd = new FormData();
-                saveFd.append('customer_id', customerId);
-                saveFd.append('height_cm', heightInput.value);
+                var hVal = Number(heightInput.value);
+                var hCm = (unitsSelect && unitsSelect.value === 'in') ? Math.round(toCm(hVal)) : Math.round(hVal);
+                saveFd.append('height_cm', String(hCm));
                 await fetch('/apps/rapso/fit/save-height', { method: 'POST', body: saveFd });
               }
             } catch (e) {}
@@ -122,7 +160,10 @@
           // 3) Commit
           var commitRes = await fetch('/apps/rapso/fit/commit?shop=' + encodeURIComponent((window.Shopify && Shopify.shop) || ''), {
             method: 'POST', headers: { 'content-type':'application/json' },
-            body: JSON.stringify({ object_keys: [objectKey], height_cm: heightInput.value ? Number(heightInput.value) : undefined, customer_id: customerId || undefined })
+            body: JSON.stringify({
+              object_keys: [objectKey],
+              height_cm: heightInput.value ? (unitsSelect && unitsSelect.value === 'in' ? Math.round(toCm(Number(heightInput.value))) : Number(heightInput.value)) : undefined
+            })
           });
           if(!commitRes.ok){ status.textContent = 'Commit failed'; status.classList.add('rapso-status--error'); return; }
           var commit = await commitRes.json();
@@ -183,6 +224,29 @@
         }
       }
       submit && submit.addEventListener('click', createJob);
+      // Persist units preference
+      try {
+        if (unitsSelect) {
+          var savedUnits = localStorage.getItem('rapso_units');
+          if (savedUnits && (savedUnits === 'cm' || savedUnits === 'in')) {
+            unitsSelect.value = savedUnits;
+            setHeightPlaceholder();
+          }
+          unitsSelect.addEventListener('change', function(){ try { localStorage.setItem('rapso_units', unitsSelect.value); } catch(e){} });
+        }
+      } catch(e){}
+      unitsSelect && unitsSelect.addEventListener('change', function(){
+        setHeightPlaceholder();
+        // If already filled and we toggle units, convert the number
+        if (heightInput && heightInput.value) {
+          var v = Number(heightInput.value);
+          if (unitsSelect.value === 'in') {
+            heightInput.value = String(Math.round(toInches(v)));
+          } else {
+            heightInput.value = String(Math.round(toCm(v)));
+          }
+        }
+      });
     });
   });
 

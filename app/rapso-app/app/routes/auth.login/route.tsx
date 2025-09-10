@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { Form, useActionData, useLoaderData } from "@remix-run/react";
 import {
@@ -39,6 +39,13 @@ export default function Auth() {
   const [shop, setShop] = useState("");
   const { errors } = actionData || loaderData;
 
+  useEffect(() => {
+    try {
+      const last = localStorage.getItem("rapso_last_shop");
+      if (last) setShop(last);
+    } catch {}
+  }, []);
+
   return (
     <PolarisAppProvider i18n={loaderData.polarisTranslations}>
       <Page>
@@ -54,8 +61,11 @@ export default function Auth() {
                 label="Shop domain"
                 helpText="example.myshopify.com"
                 value={shop}
-                onChange={setShop}
-                autoComplete="on"
+                onChange={(v) => {
+                  setShop(v);
+                  try { localStorage.setItem("rapso_last_shop", v || ""); } catch {}
+                }}
+                autoComplete="url"
                 error={errors.shop}
               />
               <Button submit>Log in</Button>

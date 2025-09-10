@@ -5,12 +5,7 @@ import { authenticate } from "../shopify.server";
 
 // App Proxy endpoint: POST /proxy (Shopify forwards from /apps/rapso/tryon)
 export const action = async ({ request }: ActionFunctionArgs) => {
-  // Verify request is coming from Shopify's proxy if available; in dev we allow
-  try {
-    await authenticate.public.appProxy(request);
-  } catch {
-    // Continue in dev; consider failing with 401 in prod
-  }
+  await authenticate.public.appProxy(request);
 
   const form = await request.formData();
   const file = form.get("file");
@@ -24,10 +19,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const res = await fetch(`${env.BACKEND_URL}/uploads`, { method: "POST", body: fd });
   const text = await res.text();
-  if (!res.ok) return json({ error: text || "upload failed" }, { status: res.status });
+  if (!res.ok) return json({ error: text || "upload failed" }, { status: res.status, headers: { "cache-control": "no-store" } });
   try {
-    return json(JSON.parse(text));
+    return json(JSON.parse(text), { headers: { "cache-control": "no-store" } });
   } catch {
-    return json({ error: text || "invalid response" }, { status: 502 });
+    return json({ error: text || "invalid response" }, { status: 502, headers: { "cache-control": "no-store" } });
   }
 };

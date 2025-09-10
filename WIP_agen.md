@@ -92,6 +92,18 @@ Use this sequence unless instructed otherwise. Create one PR per step.
 * Customer Account UI extension page “Fit Profile”: canonical management, history, height edit with double confirm.
 * Use supported UI components where available, including upload drop zones in Customer Account context. ([Shopify][11])
 
+7. Auth & Login UX (Admin)
+
+* Preserve shop domain for autofill/password managers (autocomplete + localStorage).
+* Evaluate Shopify’s current CLI app login flows; prefer OAuth redirection kicked off without extra form steps.
+* Explore SSO: Shopify handles merchant auth; if/when Shopify exposes org SSO (e.g., Google) hooks, link to the official flow rather than rolling our own. Track in backlog.
+
+TODOs
+
+- [ ] Admin login form: already remembers last shop in localStorage; verify autocomplete hints work across browsers.
+- [ ] Document that merchant auth is via Shopify OAuth; do not implement custom passwords.
+- [ ] Investigate whether Shopify Partners/Org SSO (e.g., Google) can be leveraged for app access; if available, link “Sign in with Shopify” or redirect to store login page.
+
 6. Compliance and deletion
 
 * Implement `customers/data_request`, `customers/redact`, and `shop/redact`. Map to deletion of S3 objects and DB rows. Provide a manual test runbook. ([Shopify][9])

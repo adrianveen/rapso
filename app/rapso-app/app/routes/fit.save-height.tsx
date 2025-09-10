@@ -9,13 +9,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = url.searchParams.get("shop") || "";
   const form = await request.formData();
   const heightStr = form.get("height_cm");
-  const customerId = form.get("customer_id");
-  if (typeof customerId !== "string" || !customerId) return json({ error: "Missing customer_id" }, { status: 400 });
+  const customerIdRaw = form.get("customer_id");
+  const loggedInId = url.searchParams.get("logged_in_customer_id") || "";
+  const customerId = typeof customerIdRaw === "string" && customerIdRaw ? customerIdRaw : loggedInId;
+  if (!customerId) return json({ error: "not_logged_in" }, { status: 401 });
+  if (typeof customerIdRaw === "string" && customerIdRaw && customerIdRaw !== loggedInId) {
+    return json({ error: "forbidden" }, { status: 403 });
+  }
   const heightCm = typeof heightStr === "string" && heightStr.length > 0 ? Number(heightStr) : undefined;
   await prisma.customerProfile.upsert({
     where: { shopDomain_shopCustomerId: { shopDomain: shop, shopCustomerId: customerId } },
     update: { heightCentimetres: heightCm },
     create: { shopDomain: shop, shopCustomerId: customerId, heightCentimetres: heightCm },
   });
-  return json({ ok: true, heightCm: heightCm ?? null });
+  return json(
+    { ok: true, heightCm: heightCm ?? null },
+    { headers: { "cache-control": "no-store" } },
+  );
 };

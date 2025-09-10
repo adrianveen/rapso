@@ -108,10 +108,10 @@ export default function ModelTest() {
           if (timer) clearInterval(timer);
         }
         // eslint-disable-next-line no-console
-        console.log("job status", j);
+        // Intentionally avoid console logging of job details in production
       } catch (e) {
         // eslint-disable-next-line no-console
-        console.error("poll error", e);
+        // Swallow polling errors to avoid noisy logs; surface via UI if needed
       }
     };
     poll();

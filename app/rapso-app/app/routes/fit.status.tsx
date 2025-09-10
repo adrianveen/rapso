@@ -29,5 +29,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     } catch {}
   }
   const outputUrl = outputKey ? `/apps/rapso/assets/${outputKey}` : null;
-  return json({ status, output_url: outputUrl });
+  return json(
+    { status, output_url: outputUrl },
+    { headers: { "cache-control": "no-store" } },
+  );
 };

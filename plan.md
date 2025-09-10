@@ -1,5 +1,27 @@
 # Rapso: Build Plan
 
+Progress Checkpoint — current status
+
+- Completed
+  - Theme App Extension PDP modal with a11y, focus trap, and scroll lock.
+  - Height prefill via App Proxy endpoint (`/apps/rapso/fit/height`).
+  - Privacy hardening: endpoints now require App Proxy HMAC and logged-in customer ID; removed customer ID from DOM.
+  - Save-height writes to `CustomerProfile` with identity enforcement.
+  - Units toggle (cm/in) in PDP; backend remains centimetres.
+  - Login UX: remembers last shop domain and improved autocomplete for password managers.
+  - Theme extension checks: added `locales/en.default.json` and changed JS include to `defer`.
+  - Security headers: Referrer-Policy and CSP `frame-ancestors` for embedded app.
+
+- Next Steps
+  - App plumbing: run `shopify app deploy -f` and `shopify app release` per change; keep temporary URL (no permanent HTTPS yet).
+  - Backend/worker hosting and `BACKEND_URL` wiring.
+  - Storage CORS + lifecycle; delete input photos after processing.
+  - Migrate DB to managed Postgres; set up CI/CD migrations.
+  - Add Billing (plan + metered usage) and observability (metrics, alerts).
+  - Further security hardening and console/PII audit.
+
+================== CURRENT PROGRESS BREAK ==================
+
 ## Overview
 **Goal:** Single-photo → featureless, proportionate 3D body model → try-on.  
 **Stack in repo:** Shopify Remix app (`app/rapso-app`), FastAPI backend (`backend`), GPU/CPU worker (`worker`), Prisma (session storage), Docker Compose with profiles (cpu, gpu).  
@@ -51,6 +73,10 @@
   - Else: ask for height + photo upload; create job; email/push when ready.  
 - Asset access via signed URLs; ensure CORS and origin controls.  
 
+Note (UX)
+- Mobile camera uploads verified working.
+- Units toggle added for height input (cm/in); backend persists cm only.
+
 ### Garment Try-on (MVP)
 - **Phase 1:** Show body model next to product images with size suggestions based on inferred measurements (no cloth sim).  
 - **Phase 2:** 3D garment drape on mesh using simplified cloth or pre-fit proxies for your catalog’s top SKUs.  
@@ -60,6 +86,17 @@
 - **PII tightness:** Store minimal user data, encrypt-at-rest, signed URLs time-limited.  
 - **Retention policy:** Auto-delete input photos after model produced.  
 - **Merchant controls:** Export/delete customer models; clear data if app uninstalled (`app/rapso-app/app/routes/webhooks.app.uninstalled.tsx:1` hook).  
+
+TODOs
+
+- [ ] Frontend data hygiene: don't inject PII (customer IDs, height) into HTML/JS-visible DOM; rely on App Proxy `logged_in_customer_id` on the server. Remove `data-customer-id` from the PDP block once endpoints derive identity server-side.
+- [ ] Ensure no PII is printed in browser console/network errors; audit and strip `console.*`.
+- [ ] Set `Cache-Control: no-store` on responses that include customer data (height, profile). Keep payloads minimal JSON.
+- [ ] Add CSP and Referrer-Policy to Admin responses where possible.
+
+### Repository & Licensing
+- License: switch to a Non-Commercial license to prevent monetization while public.
+- TODO: privatize this repository before GA and revisit licensing.
 
 ### Billing & Usage
 - Shopify Billing API: Monthly plan + metered usage per completed model.  

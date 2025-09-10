@@ -1,0 +1,11 @@
+{
+  "rapso": {
+    "pdp": {
+      "button": "Try on with Rapso",
+      "title": "Try on with Rapso",
+      "photo_label": "Photo (single, full body)",
+      "units_label": "Units",
+      "height_label": "Height"
+    }
+  }
+}

@@ -10,7 +10,7 @@ function getOrCreateGuestId(headers: Headers): { id: string; setCookie?: string 
   const m = /rapso_session=([^;]+)/.exec(cookie);
   if (m) return { id: m[1] };
   const raw = crypto.randomBytes(16).toString("hex");
-  const setCookie = `rapso_session=${raw}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`;
+  const setCookie = `rapso_session=${raw}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}; Secure`;
   return { id: raw, setCookie };
 }
 
@@ -21,8 +21,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const body = await request.json().catch(() => ({}));
   const objectKeys: string[] = Array.isArray(body.object_keys) ? body.object_keys : [];
   const heightCm: number | undefined = typeof body.height_cm === "number" ? body.height_cm : undefined;
-  const customerId: string | undefined = typeof body.customer_id === "string" ? body.customer_id : undefined;
+  const customerIdRaw: string | undefined = typeof body.customer_id === "string" ? body.customer_id : undefined;
   if (!objectKeys.length) return json({ error: "Missing object_keys" }, { status: 400 });
+  // If the request claims a logged-in customer, enforce identity via App Proxy param
+  const loggedInId = url.searchParams.get("logged_in_customer_id") || undefined;
+  const customerId = customerIdRaw || loggedInId;
+  if (customerIdRaw && (!loggedInId || customerIdRaw !== loggedInId)) {
+    return json({ error: "forbidden" }, { status: 403 });
+  }
+
+  // Basic rate limiting: one active/new run per 120s per identity
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 120 * 1000);
+  const sessionIdHash = customerId
+    ? null
+    : crypto
+        .createHash("sha256")
+        .update(getOrCreateGuestId(request.headers).id)
+        .digest("hex");
+  const recent = await prisma.modelRun.findFirst({
+    where: customerId
+      ? { shopDomain: shop, shopCustomerId: customerId, createdAt: { gte: cutoff } }
+      : { shopDomain: shop, sessionId: sessionIdHash || undefined, createdAt: { gte: cutoff } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recent) {
+    return json({ error: "rate_limited" }, { status: 429, headers: { "cache-control": "no-store" } });
+  }
 
   const { id: guestId, setCookie } = getOrCreateGuestId(request.headers);
   const jobId = crypto.randomUUID();
@@ -72,6 +97,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const payload = json({ job_id: jobId, status: "queued" });
+  payload.headers.set("cache-control", "no-store");
   if (setCookie) payload.headers.append("Set-Cookie", setCookie);
   return payload;
 };

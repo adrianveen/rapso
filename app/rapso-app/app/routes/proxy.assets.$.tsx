@@ -3,9 +3,7 @@ import { authenticate } from "../shopify.server";
 import { env } from "../utils/env.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  try {
-    await authenticate.public.appProxy(request);
-  } catch {}
+  await authenticate.public.appProxy(request);
   const rest = params["*"] || "";
   const upstream = `${env.BACKEND_URL}/assets/${rest}`;
   const res = await fetch(upstream);

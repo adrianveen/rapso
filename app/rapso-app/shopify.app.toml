@@ -2,36 +2,36 @@
 
 client_id = "125e1e90b66977c91b3f17bb6deb65ff"
 name = "rapso-app"
-application_url = "https://lo-rooms-winning-fit.trycloudflare.com"
+application_url = "https://bizarre-effects-expanding-lived.trycloudflare.com"
 embedded = true
 handle = "rapso-app"
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true
+include_config_on_deploy = true
 
 [webhooks]
 api_version = "2025-07"
 
   [[webhooks.subscriptions]]
-  topics = [ "app/uninstalled" ]
-  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/scopes_update" ]
+  uri = "https://ia-become-bulgarian-et.trycloudflare.com/webhooks/app/scopes_update"
 
   [[webhooks.subscriptions]]
-  topics = [ "app/scopes_update" ]
-  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/uninstalled" ]
+  uri = "https://ia-become-bulgarian-et.trycloudflare.com/webhooks/app/uninstalled"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,read_customers,write_customers"
+scopes = "read_customers,write_customers,write_products"
 
 [auth]
-redirect_urls = ["https://lo-rooms-winning-fit.trycloudflare.com/auth/callback", "https://lo-rooms-winning-fit.trycloudflare.com/auth/shopify/callback", "https://lo-rooms-winning-fit.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://bizarre-effects-expanding-lived.trycloudflare.com/auth/callback", "https://bizarre-effects-expanding-lived.trycloudflare.com/auth/shopify/callback", "https://bizarre-effects-expanding-lived.trycloudflare.com/api/auth/callback"]
+
+[app_proxy]
+url = "https://bizarre-effects-expanding-lived.trycloudflare.com"
+subpath = "rapso"
+prefix = "apps"
 
 [pos]
 embedded = false
-
-[app_proxy]
-url = "https://lo-rooms-winning-fit.trycloudflare.com/proxy"
-subpath = "rapso"
-prefix = "apps"

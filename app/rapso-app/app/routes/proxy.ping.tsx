@@ -4,8 +4,6 @@ import { authenticate } from "../shopify.server";
 
 // Quick App Proxy health check: GET /proxy/ping
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  try {
-    await authenticate.public.appProxy(request);
-  } catch {}
-  return json({ ok: true });
+  await authenticate.public.appProxy(request);
+  return json({ ok: true }, { headers: { "cache-control": "no-store" } });
 };

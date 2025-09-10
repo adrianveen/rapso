@@ -1,11 +1,34 @@
-# Shopify 3D Try‑On App
+# Rapso — Shopify Try‑On App
 
-This repository contains the scaffolding for a Shopify application that allows customers to upload a photo and generate a personalised 3D avatar for virtual try‑ons.  The goal is to provide retailers and merchants with a ready‑to‑use framework for integrating a "photo to 3D model" workflow into their product pages.  The project is organised into three services:
+Rapso lets shoppers generate a private, featureless 3D body model from a single photo and their height, then preview fit and sizing on product pages. This repo contains:
 
-* **app/** – An embedded Shopify Admin app built with Remix and Polaris for managing products, sizes, and customer avatars.  This front‑end also exposes a Storefront endpoint to display a Three.js viewer on product detail pages.
-* **backend/** – A Python FastAPI service that handles uploads, Shopify OAuth, webhooks, and orchestrates model inference.  It interfaces with a task queue and storage system to persist images, meshes, and fit metrics.
-* **worker/** – A GPU‑enabled inference service that fits a parametric human body model (e.g. SMPL/SMPL‑X) to the customer’s photo, combines it with pre‑computed garment deformations, and produces a personalised mesh and tightness map.
+- `app/rapso-app`: Embedded Shopify app (Remix + Polaris) and a Theme App Extension (PDP block + small modal UI)
+- `backend/`: FastAPI service for uploads, presign/commit/status, asset serving
+- `worker/`: GPU/CPU service for model inference (placeholder for now)
 
-The repository also includes a `docker-compose.yml` file for local development, a `.gitignore` file for common Node/Python artefacts, and per‑service README files describing the intended purpose of each folder.
+Quick Start
+- Install CLI deps (Node 20+, pnpm recommended), then: `make app-install`
+- Dev the app with tunnel: `make app` (or `shopify app dev --store <dev-store>` inside `app/rapso-app`)
+- Add the “Rapso Try‑on” app block in Theme Editor (Product template) and test the PDP modal
 
-**Note:** This scaffold does not yet implement any 3D reconstruction or garment simulation logic.  It provides a starting point for developers to build upon.
+What’s Implemented
+- PDP modal with accessibility polish, keyboard trap, and scroll lock
+- App Proxy endpoints for presign/commit/status/assets and height retrieval
+- Height prefill for logged‑in customers; units toggle (cm/in) with backend persisting cm
+- Privacy guards: endpoints require App Proxy HMAC and logged‑in identity; no customer IDs in the DOM
+
+Deploy (CLI)
+- From `app/rapso-app`: `shopify app deploy -f` then `shopify app release`
+- Keep temporary/tunnel URL for now; we’ll switch to a permanent HTTPS later
+
+Security & Privacy
+- No PII in markup or console; minimal JSON responses; `Cache-Control: no-store` on customer data
+- Identity via App Proxy `logged_in_customer_id`; all writes/reads enforce match
+
+Roadmap
+- Backend/worker hosting + storage lifecycle (auto‑delete input photos)
+- DB migration to managed Postgres; observability and alerts
+- Billing plan + metered usage for completed model runs
+- Hardening (CSP where safe, more endpoint audits)
+
+See `plan.md` for a detailed, living plan and current progress checkpoint.

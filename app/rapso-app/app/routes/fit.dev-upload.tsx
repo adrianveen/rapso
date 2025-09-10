@@ -11,5 +11,5 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     body: form,
   });
   const text = await res.text();
-  try { return json(JSON.parse(text)); } catch { return json({ error: text || "upload failed"}, { status: res.status }); }
+  try { return json(JSON.parse(text), { headers: { "cache-control": "no-store" } }); } catch { return json({ error: text || "upload failed"}, { status: res.status, headers: { "cache-control": "no-store" } }); }
 };

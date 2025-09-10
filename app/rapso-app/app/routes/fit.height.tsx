@@ -3,23 +3,20 @@ import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
-// Fallback when App Proxy URL points to app root (no /proxy)
+// GET /fit/height (fallback) — returns the logged in customer's height via App Proxy
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Require valid App Proxy signature
   await authenticate.public.appProxy(request);
 
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop") || "";
-  const customerId = url.searchParams.get("customer_id") || "";
-  const loggedInId = url.searchParams.get("logged_in_customer_id") || "";
-
-  if (!customerId) return json({ error: "Missing customer_id" }, { status: 400 });
+  const loggedInId = url.searchParams.get("logged_in_customer_id");
   if (!loggedInId) return json({ error: "not_logged_in" }, { status: 401 });
-  if (customerId !== loggedInId) return json({ error: "forbidden" }, { status: 403 });
 
   const profile = await prisma.customerProfile.findUnique({
-    where: { shopDomain_shopCustomerId: { shopDomain: shop, shopCustomerId: customerId } },
+    where: { shopDomain_shopCustomerId: { shopDomain: shop, shopCustomerId: loggedInId } },
   });
+
   return json(
     { height_cm: profile?.heightCentimetres ?? null },
     { headers: { "cache-control": "no-store" } },
