@@ -21,6 +21,12 @@ Deploy (CLI)
 - From `apps/shopify`: `shopify app deploy -f` then `shopify app release`
 - Keep temporary/tunnel URL for now; we’ll switch to a permanent HTTPS later
 
+Developer docs
+- See `docs/DEV.md` for detailed local startup, tunnels, testing, and troubleshooting.
+
+Contributor conventions
+- Agent output format: only use JSON when explicitly requested for machine ingestion. Otherwise, use plain text with concise headers and bullets. See `AGENTS.md` for full rules.
+
 Security & Privacy
 - No PII in markup or console; minimal JSON responses; `Cache-Control: no-store` on customer data
 - Identity via App Proxy `logged_in_customer_id`; all writes/reads enforce match

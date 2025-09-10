@@ -2,7 +2,7 @@
 
 client_id = "125e1e90b66977c91b3f17bb6deb65ff"
 name = "rapso-app"
-application_url = "https://bizarre-effects-expanding-lived.trycloudflare.com"
+application_url = "https://metro-charged-webshots-st.trycloudflare.com"
 embedded = true
 handle = "rapso-app"
 
@@ -26,10 +26,10 @@ api_version = "2025-07"
 scopes = "read_customers,write_customers,write_products"
 
 [auth]
-redirect_urls = ["https://bizarre-effects-expanding-lived.trycloudflare.com/auth/callback", "https://bizarre-effects-expanding-lived.trycloudflare.com/auth/shopify/callback", "https://bizarre-effects-expanding-lived.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://metro-charged-webshots-st.trycloudflare.com/auth/callback", "https://metro-charged-webshots-st.trycloudflare.com/auth/shopify/callback", "https://metro-charged-webshots-st.trycloudflare.com/api/auth/callback"]
 
 [app_proxy]
-url = "https://bizarre-effects-expanding-lived.trycloudflare.com"
+url = "https://metro-charged-webshots-st.trycloudflare.com"
 subpath = "rapso"
 prefix = "apps"
 
