@@ -21,11 +21,15 @@ class ProcessRequest(BaseModel):
     input_url: HttpUrl
     height_cm: Optional[float] = None
     callback_url: Optional[HttpUrl] = None
+    provider: Optional[str] = None  # e.g., 'smplx_icon' | 'tripo' | 'external_api' | 'null'
 
 
 @app.post("/process")
 def process(req: ProcessRequest):
-    # Simulate compute
+    provider = (req.provider or "null").lower()
+    logger.info("Processing job %s with provider=%s", req.job_id, provider)
+
+    # Simulate compute based on provider (scaffold)
     time.sleep(2)
     # Inform backend that job completed (if callback provided)
     if req.callback_url:

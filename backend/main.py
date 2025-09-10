@@ -50,6 +50,7 @@ S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")
 S3_SECRET_KEY = os.getenv("S3_SECRET_KEY")
 S3_REGION = os.getenv("S3_REGION", "auto")
 WORKER_URL = os.getenv("WORKER_URL")
+MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "smplx_icon")
 BACKEND_INTERNAL_URL = os.getenv("BACKEND_INTERNAL_URL", "http://backend:8000")
 APP_CALLBACK_URL = os.getenv("APP_CALLBACK_URL")
 MODEL_CALLBACK_SECRET = os.getenv("MODEL_CALLBACK_SECRET")
@@ -197,6 +198,7 @@ def _enqueue_worker(job_id: str, input_key: str, height_cm: Optional[float]):
                     "input_url": input_url,
                     "height_cm": height_cm,
                     "callback_url": callback_url,
+                    "provider": MODEL_PROVIDER,
                 },
             )
         # Mark as processing while worker runs

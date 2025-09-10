@@ -5,7 +5,7 @@ Rapso PDP block — renders a small button and modal for uploading a photo and h
 {{ 'rapso-pdp.css' | asset_url | stylesheet_tag }}
 <script defer src="{{ 'rapso-pdp.js' | asset_url }}"></script>
 
-<div class="rapso-block" data-rapso-block>
+<div class="rapso-block" data-rapso-block data-small-max="{{ block.settings.small_max_cm }}" data-medium-max="{{ block.settings.medium_max_cm }}" data-sizes-labels="{{ block.settings.sizes_labels | escape }}">
   <button class="rapso-btn" type="button">{{ block.settings.button_label | default: 'rapso.pdp.button' | t | escape }}</button>
   <div class="rapso-modal" hidden role="dialog" aria-modal="true" aria-labelledby="rapso-title-{{ block.id }}">
     <div class="rapso-modal__dialog">
@@ -43,7 +43,10 @@ Rapso PDP block — renders a small button and modal for uploading a photo and h
   "name": "Rapso Try-on",
   "target": "section",
   "settings": [
-    { "type": "text", "id": "button_label", "label": "Button label", "default": "Try on with Rapso" }
+    { "type": "text", "id": "button_label", "label": "Button label", "default": "Try on with Rapso" },
+    { "type": "range", "id": "small_max_cm", "label": "Small max height (cm)", "min": 120, "max": 190, "step": 1, "default": 165 },
+    { "type": "range", "id": "medium_max_cm", "label": "Medium max height (cm)", "min": 130, "max": 210, "step": 1, "default": 180 },
+    { "type": "text", "id": "sizes_labels", "label": "Sizes labels (comma‑separated)", "default": "S,M,L" }
   ]
 }
 {% endschema %}

@@ -39,6 +39,18 @@
         }
       }
 
+      function computeSuggestion(cm){
+        try {
+          var sMax = Number((root.getAttribute('data-small-max')||'').trim()) || 165;
+          var mMax = Number((root.getAttribute('data-medium-max')||'').trim()) || 180;
+          var labels = (root.getAttribute('data-sizes-labels')||'S,M,L').split(',').map(function(s){return s.trim()});
+          var S = labels[0] || 'S'; var M = labels[1] || 'M'; var L = labels[2] || 'L';
+          if (cm <= sMax) return S;
+          if (cm <= mMax) return M;
+          return L;
+        } catch(e) { return null; }
+      }
+
       async function prefillHeight(){
         if (!heightInput) return;
         try {
@@ -51,6 +63,9 @@
               } else {
                 heightInput.value = String(Math.round(j.height_cm));
               }
+              var cm = unitsSelect && unitsSelect.value === 'in' ? toCm(Number(heightInput.value)) : Number(heightInput.value);
+              var sug = computeSuggestion(Math.round(cm));
+              if (sug && status) { status.textContent = 'Suggested size: ' + sug; }
             }
           }
         } catch (e) {}
@@ -224,6 +239,15 @@
         }
       }
       submit && submit.addEventListener('click', createJob);
+      if (heightInput) {
+        heightInput.addEventListener('input', function(){
+          var v = Number(heightInput.value);
+          if (!v || v<=0) return;
+          var cm = unitsSelect && unitsSelect.value === 'in' ? toCm(v) : v;
+          var sug = computeSuggestion(Math.round(cm));
+          if (sug && status) { status.textContent = 'Suggested size: ' + sug; }
+        });
+      }
       // Persist units preference
       try {
         if (unitsSelect) {
