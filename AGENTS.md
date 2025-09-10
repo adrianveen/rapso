@@ -81,6 +81,7 @@ Code formatting policy
 - Use ```bash``` for Bash or zsh, ```powershell``` for PowerShell, ```bat``` for Windows CMD, and the correct tag for other languages (for example ```python```, ```javascript```, ```sql```, ```json```, ```yaml```).
 - Do not embed multi-line code inside JSON fields or prose.
 - Commands should be copy-paste friendly. Avoid adding prompt symbols unless requested.
+- Always suggest a testing routine, IF the Agent cannot complete it on their end (ie doesn't have access to browser or WSL etc)
 
 Collaboration loop
 - Extract actions. Keep them ordered and scoped.
