@@ -6,6 +6,8 @@ down:
 	docker compose down
 logs:
 	docker compose logs -f
+smoketest:
+	BACKEND_URL=$${BACKEND_URL:-http://localhost:8000} bash scripts/smoketest.sh
 health:
 	bash scripts/health.sh
 check-no-store:
@@ -22,4 +24,4 @@ tunnel:
 	@if [ -z "$${PORT}" ]; then echo "Usage: make tunnel PORT=43339"; exit 1; fi; \
 	cloudflared tunnel --url http://127.0.0.1:$${PORT}
 
-.PHONY: cpu gpu down logs health check-no-store app app-install reauth migrate tunnel
+.PHONY: cpu gpu down logs smoketest health check-no-store app app-install reauth migrate tunnel

@@ -7,16 +7,27 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 python3-pip python3-venv ca-certificates && \
+      python3 python3-pip python3-venv ca-certificates git \
+      libgl1 libglib2.0-0 libxext6 libsm6 libxrender1 && \
     rm -rf /var/lib/apt/lists/*
+
+# Provide `python` shim for tools expecting it
+RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # Upgrade pip and install FastAPI+Uvicorn, then PyTorch cu121 wheels
 RUN python3 -m pip install --no-cache-dir --upgrade pip && \
     python3 -m pip install --no-cache-dir \
-      fastapi uvicorn[standard] && \
+      fastapi uvicorn[standard] httpx && \
+    python3 -m pip install --no-cache-dir \
+      numpy pillow scipy mediapipe opencv-python-headless trimesh && \
     python3 -m pip install --no-cache-dir \
       --index-url https://download.pytorch.org/whl/cu121 \
       torch torchvision torchaudio
+
+# TripoSR: clone source (repo is not pip-installable). Safe no-op if network blocked.
+RUN git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git /opt/triposr || true
+RUN test -f /opt/triposr/requirements.txt && python3 -m pip install --no-cache-dir -r /opt/triposr/requirements.txt || true
+ENV TRIPOSR_CMD="python3 /opt/triposr/run.py"
 
 WORKDIR /app
 COPY . .

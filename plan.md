@@ -14,18 +14,29 @@ Progress Checkpoint — current status
   - Admin pages: Getting Started (`/app/getting-started`), Jobs (`/app/jobs`) listing last runs, Billing placeholder (`/app/billing`).
   - Proxy enforcement on assets/jobs/tryon/ping and `no-store` caching for customer data.
   - Basic anti‑abuse: rate limiting on commit (1/120s per identity) and presign (1/10s per identity) + server‑side image type/size validation.
-  - Tests: added Vitest and unit tests for `fit.height` and `fit.presign` (no network/external services).
+  - Tests: Vitest unit tests for `fit.height` and `fit.presign` (no network/external services).
+  - Backend: FastAPI service with `POST /uploads`, `POST /enqueue`, `GET /jobs/{id}`, `POST /jobs/{id}/callback`, `POST /presign`, and `POST /dev/upload` implemented (`backend/main.py:1`).
+  - Backend storage: S3/R2 optional, local dev fallback mounted at `/assets` with presigned-style URLs in dev.
+  - Backend DB: SQLite with `jobs` and `assets` tables via SQLAlchemy; idempotent asset insert in callback and fixed DetachedInstanceError by `expire_on_commit=False`.
+  - Worker: FastAPI stub with `/healthz` and `/process` routes; accepts `provider` and posts callback to backend (`worker/main.py:1`).
+  - Worker demo provider: Silhouette segmentation + surface‑of‑revolution to output `.glb` (`worker/providers/silhouette_revolve.py:1`), wired as the default provider path in `/process` (`worker/main.py:1`).
+  - Admin model viewer: Added HTTPS asset proxy and routed `/assets/*` to `/api/assets/*` to avoid mixed content; in‑page `<model-viewer>` now renders the output (`apps/shopify/app/routes/api.assets.$.tsx:1`, `apps/shopify/app/routes/app.model.tsx:1`).
+  - Callback wiring: Backend forwards job completion to app when `APP_CALLBACK_URL` + `MODEL_CALLBACK_SECRET` are set (`backend/main.py:357`).
+  - Worker job handling: `/process` now runs jobs asynchronously via FastAPI BackgroundTasks to avoid request timeouts; backend enqueue returns quickly (`worker/main.py:91`).
 
 - Next Steps
-  - App plumbing: run `shopify app deploy -f` and `shopify app release` per change; keep temporary URL (no permanent HTTPS yet).
-  - Backend/worker hosting and `BACKEND_URL` wiring.
-  - Storage CORS + lifecycle; delete input photos after processing.
-  - Migrate DB to managed Postgres; set up CI/CD migrations.
+  - Implement actual model generation in the worker (free tools where possible):
+    - Option A (general 3D): integrate TripoSR/SF3D single-image→3D to output `.glb` for the person photo (fast demo path; mesh is not measurement-accurate).
+    - Option B (body model): integrate SMPL/SMPL-X estimation (e.g., via MMHuman3D or PIXIE) to produce a featureless body mesh scaled by user height (requires SMPL assets/licence acceptance).
+  - Delete input photos after successful model generation; retain only mesh and minimal metadata. [IN PROGRESS]
+  - Track A provider: Add TripoSR/SF3D dependency to the GPU worker image and set `MODEL_PROVIDER=triposr`; fallback remains silhouette if unavailable. Provide `TRIPOSR_CMD` for CLI integration. [IN PROGRESS]
+  - Backend/worker hosting and `BACKEND_URL` wiring for deployed environments.
+  - Storage CORS + lifecycle policies.
+  - Evaluate DB: keep SQLite for dev, plan managed Postgres for prod; add migrations.
   - Add Billing (plan + metered usage) and observability (metrics, alerts).
-  - Further security hardening and console/PII audit.
-  - Expand tests: add more route tests (commit/status), client integration tests for PDP logic via JSDOM.
-  - Merchant UX: add inline help in the PDP block and a landing tour in the admin.
-  - Analytics: add basic funnel metrics (try-on click → upload → model ready) behind a toggle.
+  - Expand tests: backend route tests (enqueue/status/callback), worker e2e in CPU profile with a tiny sample.
+  - Merchant UX: inline help for PDP block and admin onboarding.
+  - Analytics: basic funnel metrics (try-on click → upload → model ready) behind a toggle.
 
 ================== CURRENT PROGRESS BREAK ==================
 
@@ -59,10 +70,16 @@ Progress Checkpoint — current status
 - **Worker:** `POST /process` → starts inference, returns job id; callback on completion.  
 
 ### ML Pipeline POC (Worker)
-- **MVP:** Single-image → SMPL body shape estimation; produce featureless `.glb` at T-pose + neutral scale using known user height.  
-- **Steps:** Person segmentation → 2D keypoints → SMPL param fit → mesh export.  
-- **Libraries:** OpenMMLab/SMPLify-X/SPIN or ICON pipeline; export `.glb`.  
-- **Packaging:** Wrap in FastAPI with GPU Docker image (`worker/Dockerfile.gpu`).  
+- Track A — General Single-image→3D (fastest demo)
+  - Use a free model like TripoSR/SF3D to reconstruct a 3D mesh from a single photo; export `.glb`.
+  - Pros: quick to integrate; no SMPL asset licensing; visually compelling. Cons: not anthropometrically accurate.
+  - Output: clothed mesh, acceptable for a visual demo; size guidance remains heuristic.
+
+- Track B — Body Model (featureless)
+  - Single-image → SMPL/SMPL-X parameters; produce featureless, proportionate body `.glb`, scaled by user height.
+  - Steps: segmentation → keypoints → parametric fit → mesh export → height scaling.
+  - Libraries: MMHuman3D orchestration; or PIXIE/SMPLify-X. Requires SMPL(-X) model files and licence acceptance.
+  - Pros: better for sizing. Cons: more setup, model assets required.
 
 ### Admin Experience
 - **Screens:**  
@@ -131,8 +148,11 @@ TODOs
 - Run `pnpm prisma migrate dev` inside `apps/shopify`.  
 
 ### Worker
-- Build GPU image (`worker/Dockerfile.gpu`) with CUDA + Python libs (`torch`, `smpl-models`).  
-- Implement `POST /process` in `worker/main.py:1` to accept input URL + height; write `.glb` to storage; callback.  
+- Build GPU image (`worker/Dockerfile.gpu`) with CUDA + Python libs.
+  - Track A (TripoSR/SF3D): `torch`, `xformers`, `trimesh`, and the model code/checkpoints.
+  - Track B (SMPL/SMPL-X): `mmhuman3d`, `smplx`, `trimesh`; place SMPL assets via volume/secret.
+- Extend `POST /process` in `worker/main.py:1` to download input image, run chosen provider, write `.glb` to storage, then callback.
+- Handle retries/idempotency: if output already exists, short‑circuit.
 
 ### Storefront
 - Scaffold theme app extension under `apps/shopify/extensions/theme-app-extension` with a product block.  

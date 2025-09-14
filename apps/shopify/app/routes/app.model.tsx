@@ -115,9 +115,16 @@ export default function ModelTest() {
         const j = await r.json();
         setStatus(j.status || "");
         const rawUrl: string | null = j.output_url || null;
-        // Ensure absolute URL for cross-origin loads
-        const abs = rawUrl && rawUrl.startsWith("/") ? `${backendUrl}${rawUrl}` : rawUrl;
-        setOutputUrl(abs);
+        // Route backend-local assets through admin HTTPS proxy to avoid mixed content
+        let src: string | null = null;
+        if (rawUrl) {
+          if (rawUrl.startsWith("/assets/")) {
+            src = `/api/assets/${rawUrl.replace(/^\/assets\//, "")}`;
+          } else {
+            src = rawUrl; // already absolute (e.g., S3 presigned)
+          }
+        }
+        setOutputUrl(src);
         if (j.status === "completed" || j.status === "failed") {
           if (timer) clearInterval(timer);
         }

@@ -71,6 +71,10 @@ MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "smplx_icon")
 BACKEND_INTERNAL_URL = os.getenv("BACKEND_INTERNAL_URL", "http://backend:8000")
 APP_CALLBACK_URL = os.getenv("APP_CALLBACK_URL")
 MODEL_CALLBACK_SECRET = os.getenv("MODEL_CALLBACK_SECRET")
+DELETE_INPUTS_ON_SUCCESS = os.getenv("DELETE_INPUTS_ON_SUCCESS", "false").lower() in ("1", "true", "yes")
+# Fail-safe completion delay (seconds). Set to 0 to disable.
+# Default: if WORKER_URL is set, disable fail-safe; else use 12s for dev simulator.
+JOB_FAILSAFE_SECONDS = int(os.getenv("JOB_FAILSAFE_SECONDS", "0" if WORKER_URL else "12"))
 STATIC_DIR = os.getenv("STATIC_DIR", os.path.join(os.getcwd(), "data"))
 os.makedirs(STATIC_DIR, exist_ok=True)
 
@@ -105,6 +109,25 @@ def put_object(key: str, data: bytes, content_type: str) -> str:
     return f"local://{path}"
 
 
+def delete_object(key: str) -> None:
+    """Delete an object by key from storage (S3/R2 or local)."""
+    if not key:
+        return
+    if _s3:
+        try:
+            _s3.delete_object(Bucket=S3_BUCKET, Key=key)
+            return
+        except Exception as e:
+            logger.warning("S3 delete_object failed, falling back to local delete: %s", e)
+    # local fallback
+    path = os.path.join(STATIC_DIR, key)
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        logger.warning("Local delete failed for %s: %s", path, e)
+
+
 def presign_url(key: str, expires: int = 3600) -> Optional[str]:
     if _s3:
         try:
@@ -126,7 +149,14 @@ def presign_url(key: str, expires: int = 3600) -> Optional[str]:
 # --- SQLite persistence (no-cost) ---
 DB_PATH = os.getenv("SQLITE_PATH", os.path.join(STATIC_DIR, "dev.sqlite"))
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+# Keep attributes available after commit to avoid DetachedInstanceError when accessed
+# outside the session context (e.g., after a `with SessionLocal()` block).
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    expire_on_commit=False,
+)
 Base = declarative_base()
 
 class JobORM(Base):
@@ -162,6 +192,13 @@ def _simulate_worker(job_id: str):
         db.commit()
     if not _s3:
         _ensure_placeholder_glb(job.output_key)
+    # Best-effort cleanup of input on success
+    if DELETE_INPUTS_ON_SUCCESS:
+        try:
+            if job.input_key:
+                delete_object(job.input_key)
+        except Exception:
+            pass
     _forward_app_callback(job_id, job.output_key)
 
 
@@ -264,6 +301,14 @@ def _fail_safe(job_id: str, delay_seconds: int = 12):
             db.commit()
 
 
+def _maybe_delete_input(input_key: Optional[str]):
+    """Delete input object if configured to do so."""
+    if not DELETE_INPUTS_ON_SUCCESS:
+        return
+    if input_key:
+        delete_object(input_key)
+
+
 @app.post("/uploads")
 async def create_upload(
     background_tasks: BackgroundTasks,
@@ -280,16 +325,23 @@ async def create_upload(
     # Create job
     with SessionLocal() as db:
         db.add(AssetORM(object_key=input_key, kind="photo", created_at=datetime.now(timezone.utc)))
-        db.add(JobORM(id=job_id, status="queued", created_at=datetime.now(timezone.utc), input_key=input_key, height_cm=height_cm))
+        db.add(JobORM(
+            id=job_id, 
+            status="queued", 
+            created_at=datetime.now(timezone.utc), 
+            input_key=input_key, 
+            height_cm=height_cm
+        ))
         db.commit()
 
     # Simulate processing (replace with call to worker service)
     # Dispatch to worker if configured; else simulate
     background_tasks.add_task(_enqueue_worker, job_id, input_key, height_cm)
-    # Add a small fail-safe so dev never hangs
-    background_tasks.add_task(_fail_safe, job_id)
+    # Optional fail-safe (disabled by default when worker is configured)
+    if JOB_FAILSAFE_SECONDS > 0:
+        background_tasks.add_task(_fail_safe, job_id, JOB_FAILSAFE_SECONDS)
 
-    return JSONResponse({"job_id": job_id, "status": job.status})
+    return JSONResponse({"job_id": job_id, "status": "queued"})
 
 
 @app.get("/jobs/{job_id}")
@@ -327,7 +379,9 @@ def job_callback(job_id: str, payload: dict):
         output_key = payload.get("output_key")
         if output_key:
             job.output_key = output_key
-            db.add(AssetORM(object_key=output_key, kind="mesh", created_at=datetime.now(timezone.utc)))
+            # Idempotent insert: only add asset if it doesn't already exist
+            if not db.get(AssetORM, output_key):
+                db.add(AssetORM(object_key=output_key, kind="mesh", created_at=datetime.now(timezone.utc)))
         db.add(job)
         db.commit()
     if job.status == "completed":
@@ -335,6 +389,11 @@ def job_callback(job_id: str, payload: dict):
             job.output_key = _make_key("outputs", f"{job.id}.glb")
         if not _s3:
             _ensure_placeholder_glb(job.output_key)
+        # Best-effort cleanup of input on success
+        try:
+            _maybe_delete_input(job.input_key)
+        except Exception:
+            pass
     _forward_app_callback(job_id, job.output_key)
     return {"ok": True}
 
@@ -411,12 +470,50 @@ class EnqueueRequest(BaseModel):
 
 @app.post("/enqueue")
 def enqueue_job(req: EnqueueRequest, background_tasks: BackgroundTasks):
+    # Idempotent create-or-update behaviour
+    dispatch = False
     with SessionLocal() as db:
-        db.add(JobORM(id=req.job_id, status="queued", created_at=datetime.now(timezone.utc), input_key=req.input_key, height_cm=req.height_cm))
-        db.commit()
-    background_tasks.add_task(_enqueue_worker, req.job_id, req.input_key, req.height_cm)
-    background_tasks.add_task(_fail_safe, req.job_id)
-    return {"job_id": req.job_id, "status": "queued"}
+        job = db.get(JobORM, req.job_id)
+        if job:
+            # Update mutable fields if provided
+            changed = False
+            if req.input_key and job.input_key != req.input_key:
+                job.input_key = req.input_key
+                changed = True
+            if req.height_cm is not None and job.height_cm != req.height_cm:
+                job.height_cm = req.height_cm
+                changed = True
+            # Decide whether to (re)dispatch
+            if job.status in {"failed"}:
+                job.status = "queued"
+                changed = True
+                dispatch = True
+            elif job.status in {"queued"}:
+                # Already queued; no duplicate dispatch
+                dispatch = False
+            elif job.status in {"processing"}:
+                dispatch = False
+            elif job.status in {"completed"}:
+                dispatch = False
+            if changed:
+                db.add(job)
+                db.commit()
+        else:
+            job = JobORM(
+                id=req.job_id,
+                status="queued",
+                created_at=datetime.now(timezone.utc),
+                input_key=req.input_key,
+                height_cm=req.height_cm,
+            )
+            db.add(job)
+            db.commit()
+            dispatch = True
+    if dispatch:
+        background_tasks.add_task(_enqueue_worker, req.job_id, req.input_key, req.height_cm)
+        if JOB_FAILSAFE_SECONDS > 0:
+            background_tasks.add_task(_fail_safe, req.job_id, JOB_FAILSAFE_SECONDS)
+    return {"job_id": req.job_id, "status": job.status}
 
 
 # Dev-only static file serving for local storage

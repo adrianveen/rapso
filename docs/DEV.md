@@ -46,6 +46,20 @@ Notes:
 - Backend stores files under `backend/data/` and jobs in `backend/data/dev.sqlite`.
 - No S3/R2 needed in dev; presigned responses map to `/assets/*` locally.
 
+GPU + TripoSR (optional):
+
+```
+# Build GPU worker
+docker compose --profile gpu up -d --build backend worker-gpu
+
+# Enable TripoSR provider
+# In backend/.env, set:
+#   MODEL_PROVIDER=triposr
+# Optionally set in worker/.env (or Dockerfile.gpu):
+#   TRIPOSR_CMD="python -m scripts.run"
+# If installing TripoSR from source, uncomment the pip install line in worker/Dockerfile.gpu and rebuild.
+```
+
 2) Run the Shopify app (Admin + App Proxy + Theme preview)
 
 ```
