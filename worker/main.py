@@ -37,6 +37,7 @@ def _run_job(req: ProcessRequest):
     provider = (req.provider or "silhouette").lower()
     logger.info("Processing job %s with provider=%s", req.job_id, provider)
     out_key = f"outputs/{req.job_id}.glb"
+    provider_used = None
     try:
         with tempfile.TemporaryDirectory() as td:
             in_path = os.path.join(td, "input.jpg")
@@ -51,11 +52,14 @@ def _run_job(req: ProcessRequest):
             if provider in {"triposr", "sf3d"} and gen_triposr is not None:
                 try:
                     gen_triposr(in_path, out_path, req.height_cm)
+                    provider_used = "triposr"
                 except Exception as e:
                     logger.warning("TripoSR provider failed, falling back to silhouette: %s", e)
                     gen_silhouette(in_path, out_path, req.height_cm)
+                    provider_used = "silhouette"
             else:
                 gen_silhouette(in_path, out_path, req.height_cm)
+                provider_used = "silhouette"
 
             # Upload GLB to backend dev endpoint (derive from callback_url base)
             if req.callback_url:
@@ -74,7 +78,7 @@ def _run_job(req: ProcessRequest):
             with httpx.Client(timeout=20.0) as client:
                 r = client.post(
                     str(req.callback_url),
-                    json={"status": "completed", "output_key": out_key},
+                    json={"status": "completed", "output_key": out_key, "provider_used": provider_used or provider},
                 )
                 logger.info("Callback to %s -> %s", req.callback_url, r.status_code)
     except Exception as e:

@@ -1,5 +1,5 @@
-# CUDA 12.1 + cuDNN8 base from NVIDIA
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+# CUDA 12.1 + cuDNN8 devel base (includes build toolchain & nvcc)
+FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
 
 # Minimal deps
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -7,26 +7,31 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 python3-pip python3-venv ca-certificates git \
-      libgl1 libglib2.0-0 libxext6 libsm6 libxrender1 && \
+      python3 python3-pip python3-venv python3-dev ca-certificates git \
+      build-essential cmake ninja-build pkg-config \
+      libgl1 libegl1 libglib2.0-0 libxext6 libsm6 libxrender1 && \
     rm -rf /var/lib/apt/lists/*
 
 # Provide `python` shim for tools expecting it
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # Upgrade pip and install FastAPI+Uvicorn, then PyTorch cu121 wheels
-RUN python3 -m pip install --no-cache-dir --upgrade pip && \
+RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
     python3 -m pip install --no-cache-dir \
       fastapi uvicorn[standard] httpx && \
     python3 -m pip install --no-cache-dir \
-      numpy pillow scipy mediapipe opencv-python-headless trimesh && \
+      numpy pillow scipy mediapipe opencv-python-headless trimesh ninja && \
     python3 -m pip install --no-cache-dir \
       --index-url https://download.pytorch.org/whl/cu121 \
       torch torchvision torchaudio
 
 # TripoSR: clone source (repo is not pip-installable). Safe no-op if network blocked.
 RUN git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git /opt/triposr || true
-RUN test -f /opt/triposr/requirements.txt && python3 -m pip install --no-cache-dir -r /opt/triposr/requirements.txt || true
+RUN python3 -m pip install --no-cache-dir scikit-build pybind11 && \
+    (test -f /opt/triposr/requirements.txt && python3 -m pip install --no-cache-dir -r /opt/triposr/requirements.txt || true) && \
+    python3 -m pip install --no-cache-dir rembg xatlas einops omegaconf transformers==4.35.0 huggingface-hub imageio[ffmpeg] moderngl && \
+    (python3 -m pip install --no-cache-dir onnxruntime-gpu || python3 -m pip install --no-cache-dir onnxruntime)
+RUN python3 -m pip install --no-cache-dir git+https://github.com/tatsy/torchmcubes.git
 ENV TRIPOSR_CMD="python3 /opt/triposr/run.py"
 
 WORKDIR /app

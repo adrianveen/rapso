@@ -2,7 +2,7 @@
 
 client_id = "125e1e90b66977c91b3f17bb6deb65ff"
 name = "rapso-app"
-application_url = "https://distinct-specials-lb-gerald.trycloudflare.com"
+application_url = "https://metadata-cd-butter-pensions.trycloudflare.com"
 embedded = true
 handle = "rapso-app"
 
@@ -26,10 +26,10 @@ api_version = "2025-07"
 scopes = "read_customers,write_customers,write_products"
 
 [auth]
-redirect_urls = ["https://distinct-specials-lb-gerald.trycloudflare.com/auth/callback", "https://distinct-specials-lb-gerald.trycloudflare.com/auth/shopify/callback", "https://distinct-specials-lb-gerald.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://metadata-cd-butter-pensions.trycloudflare.com/auth/callback", "https://metadata-cd-butter-pensions.trycloudflare.com/auth/shopify/callback", "https://metadata-cd-butter-pensions.trycloudflare.com/api/auth/callback"]
 
 [app_proxy]
-url = "https://distinct-specials-lb-gerald.trycloudflare.com"
+url = "https://metadata-cd-butter-pensions.trycloudflare.com"
 subpath = "rapso"
 prefix = "apps"
 

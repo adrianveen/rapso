@@ -69,20 +69,24 @@ def generate_glb_from_image(input_image_path: str, output_glb_path: str, height_
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"TripoSR failed: {e}")
 
-        # Find a model file and ensure it's GLB; convert if needed
+        # Find a model file and ensure it's GLB; convert if needed.
+        # TripoSR writes into subdirectories like <out_dir>/0/mesh.<ext>
         glb_path = None
         candidate_obj = None
         candidate_ply = None
-        for name in os.listdir(out_dir):
-            lower = name.lower()
-            p = os.path.join(out_dir, name)
-            if lower.endswith(".glb"):
-                glb_path = p
+        for root, dirs, files in os.walk(out_dir):
+            for name in files:
+                lower = name.lower()
+                p = os.path.join(root, name)
+                if lower.endswith(".glb"):
+                    glb_path = p
+                    break
+                if lower.endswith(".obj") and candidate_obj is None:
+                    candidate_obj = p
+                if lower.endswith(".ply") and candidate_ply is None:
+                    candidate_ply = p
+            if glb_path:
                 break
-            if lower.endswith(".obj"):
-                candidate_obj = p
-            if lower.endswith(".ply"):
-                candidate_ply = p
         if glb_path is None:
             src = candidate_obj or candidate_ply
             if src:
