@@ -36,4 +36,10 @@ worker/data/
 app/public/build/
 backend/generated/
 worker/models/
-IMG_2083.jpg
+IMG_2083.jpg.envrc
+.envrc
+.envrc.bak.env.local
+.env.local
+.env
+.env.*
+!.env.example

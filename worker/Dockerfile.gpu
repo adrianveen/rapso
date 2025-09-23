@@ -15,6 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Provide `python` shim for tools expecting it
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
+# Target RTX 2060 (Turing, SM 7.5) for CUDA extensions like torchmcubes
+ENV CMAKE_ARGS="-DCMAKE_CUDA_ARCHITECTURES=75"
+ENV TORCH_CUDA_ARCH_LIST="7.5"
+
 # Upgrade pip and install FastAPI+Uvicorn, then PyTorch cu121 wheels
 RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
     python3 -m pip install --no-cache-dir \
