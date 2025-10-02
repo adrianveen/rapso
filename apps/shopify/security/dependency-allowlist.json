@@ -1,0 +1,15 @@
+{
+  "packageRoots": [
+    "."
+  ],
+  "allowedTypes": [
+    "version",
+    "range",
+    "tag",
+    "workspace"
+  ],
+  "allowRegistry": true,
+  "disallowNonRegistry": true,
+  "allowWorkspaceWildcard": true,
+  "exceptions": []
+}

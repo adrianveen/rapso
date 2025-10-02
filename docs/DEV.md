@@ -104,6 +104,12 @@ shopify app release
 cd apps/shopify && pnpm test
 ```
 
+## Dependency integrity
+
+- `pnpm-lock.yaml` is checked in and CI runs `pnpm install --frozen-lockfile` to catch drift.
+- Run `cd apps/shopify && pnpm run security:allowlist` before raising a PR so dependency specifiers stay on the allowlist.
+
+
 ## Troubleshooting
 
 - No prompt to update URLs:
