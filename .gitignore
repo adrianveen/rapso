@@ -48,3 +48,4 @@ IMG_2083.jpg.envrc
 .env
 .env.*
 !.env.example
+*.tgz
