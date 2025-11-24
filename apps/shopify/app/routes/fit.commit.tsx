@@ -5,6 +5,10 @@ import { env } from "../utils/env.server";
 import prisma from "../db.server";
 import crypto from "node:crypto";
 
+// Height validation constants (must match backend)
+const HEIGHT_MIN_CM = 50;
+const HEIGHT_MAX_CM = 300;
+
 function getOrCreateGuestId(headers: Headers): { id: string; setCookie?: string } {
   const cookie = headers.get("cookie") || "";
   const m = /rapso_session=([^;]+)/.exec(cookie);
@@ -23,6 +27,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const heightCm: number | undefined = typeof body.height_cm === "number" ? body.height_cm : undefined;
   const customerIdRaw: string | undefined = typeof body.customer_id === "string" ? body.customer_id : undefined;
   if (!objectKeys.length) return json({ error: "Missing object_keys" }, { status: 400 });
+
+  // Validate height is within acceptable range
+  if (heightCm !== undefined && (heightCm < HEIGHT_MIN_CM || heightCm > HEIGHT_MAX_CM)) {
+    return json(
+      { error: `Height must be between ${HEIGHT_MIN_CM} and ${HEIGHT_MAX_CM} cm` },
+      { status: 400, headers: { "cache-control": "no-store" } }
+    );
+  }
+
   // If the request claims a logged-in customer, enforce identity via App Proxy param
   const loggedInId = url.searchParams.get("logged_in_customer_id") || undefined;
   const customerId = customerIdRaw || loggedInId;
@@ -36,9 +49,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const sessionIdHash = customerId
     ? null
     : crypto
-        .createHash("sha256")
-        .update(getOrCreateGuestId(request.headers).id)
-        .digest("hex");
+      .createHash("sha256")
+      .update(getOrCreateGuestId(request.headers).id)
+      .digest("hex");
   const recent = await prisma.modelRun.findFirst({
     where: customerId
       ? { shopDomain: shop, shopCustomerId: customerId, createdAt: { gte: cutoff } }

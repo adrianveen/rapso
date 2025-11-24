@@ -9,6 +9,7 @@ services:
     volumes:
       - ./app:/app
     profiles: ["full"]
+    restart: unless-stopped
 
   backend:
     build: ./backend
@@ -16,7 +17,19 @@ services:
     env_file: [backend/.env]
     volumes:
       - ./backend:/app
-    profiles: ["cpu","gpu","full"]
+    profiles: ["cpu", "gpu", "full"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
 
   worker:
     build:
@@ -26,7 +39,19 @@ services:
     env_file: [worker/.env]
     volumes:
       - ./worker:/app
-    profiles: ["cpu","full"]
+    profiles: ["cpu", "full"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
 
   worker-gpu:
     build:
@@ -39,9 +64,19 @@ services:
         reservations:
           devices:
             - capabilities: [gpu]
+        limits:
+          cpus: "4"
+          memory: 8G
     # Docker Desktop on Windows with WSL usually handles GPU without setting runtime
     # uncomment if needed:
     # runtime: nvidia
     volumes:
       - ./worker:/app
     profiles: ["gpu"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

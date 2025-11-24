@@ -1,22 +1,31 @@
+import logging
 import os
-import uuid
+import secrets
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from dotenv import load_dotenv
-
 # Optional S3 (R2-compatible) client
 import boto3
-from botocore.client import Config
-from sqlalchemy import create_engine, Column, String, DateTime, Float, Text
-from sqlalchemy.orm import sessionmaker, declarative_base
-import logging
 import httpx
+from botocore.client import Config
+from dotenv import load_dotenv
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, field_validator
+from sqlalchemy import Column, DateTime, Float, String, Text, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv()
 
@@ -24,6 +33,41 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("rapso-backend")
 
 app = FastAPI()
+
+# --- API Key Authentication ---
+# Set BACKEND_API_KEY env var to enable authentication. In production, this should always be set.
+BACKEND_API_KEY = os.getenv("BACKEND_API_KEY")
+# Endpoints that don't require API key auth (health checks, asset serving)
+_PUBLIC_PATHS = frozenset(["/healthz", "/assets"])
+
+
+def _path_is_public(path: str) -> bool:
+    """Check if a request path is public (no auth required)."""
+    if path in _PUBLIC_PATHS:
+        return True
+    # Allow asset paths under /assets/*
+    if path.startswith("/assets/"):
+        return True
+    return False
+
+
+async def verify_api_key(request: Request):
+    """Dependency that verifies API key for protected endpoints."""
+    if not BACKEND_API_KEY:
+        # Auth disabled (dev mode warning)
+        return
+
+    if _path_is_public(request.url.path):
+        return
+
+    api_key = request.headers.get("x-api-key") or request.headers.get("X-API-Key")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Missing API key")
+
+    # Timing-safe comparison
+    if not secrets.compare_digest(api_key, BACKEND_API_KEY):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
 
 # CORS: allow app origin in dev
 allowed_origins = [
@@ -34,8 +78,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins + ["http://127.0.0.1:3000", "http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-API-Key", "X-Callback-Secret"],
 )
 
 
@@ -71,10 +115,16 @@ MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "smplx_icon")
 BACKEND_INTERNAL_URL = os.getenv("BACKEND_INTERNAL_URL", "http://backend:8000")
 APP_CALLBACK_URL = os.getenv("APP_CALLBACK_URL")
 MODEL_CALLBACK_SECRET = os.getenv("MODEL_CALLBACK_SECRET")
-DELETE_INPUTS_ON_SUCCESS = os.getenv("DELETE_INPUTS_ON_SUCCESS", "false").lower() in ("1", "true", "yes")
+DELETE_INPUTS_ON_SUCCESS = os.getenv("DELETE_INPUTS_ON_SUCCESS", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 # Fail-safe completion delay (seconds). Set to 0 to disable.
 # Default: if WORKER_URL is set, disable fail-safe; else use 12s for dev simulator.
-JOB_FAILSAFE_SECONDS = int(os.getenv("JOB_FAILSAFE_SECONDS", "0" if WORKER_URL else "12"))
+JOB_FAILSAFE_SECONDS = int(
+    os.getenv("JOB_FAILSAFE_SECONDS", "0" if WORKER_URL else "12")
+)
 STATIC_DIR = os.getenv("STATIC_DIR", os.path.join(os.getcwd(), "data"))
 os.makedirs(STATIC_DIR, exist_ok=True)
 
@@ -97,7 +147,9 @@ def _make_key(*parts: str) -> str:
 def put_object(key: str, data: bytes, content_type: str) -> str:
     if _s3:
         try:
-            _s3.put_object(Bucket=S3_BUCKET, Key=key, Body=data, ContentType=content_type)
+            _s3.put_object(
+                Bucket=S3_BUCKET, Key=key, Body=data, ContentType=content_type
+            )
             return f"s3://{S3_BUCKET}/{key}"
         except Exception as e:
             logger.warning("S3 put_object failed, falling back to local storage: %s", e)
@@ -118,7 +170,9 @@ def delete_object(key: str) -> None:
             _s3.delete_object(Bucket=S3_BUCKET, Key=key)
             return
         except Exception as e:
-            logger.warning("S3 delete_object failed, falling back to local delete: %s", e)
+            logger.warning(
+                "S3 delete_object failed, falling back to local delete: %s", e
+            )
     # local fallback
     path = os.path.join(STATIC_DIR, key)
     try:
@@ -148,7 +202,9 @@ def presign_url(key: str, expires: int = 3600) -> Optional[str]:
 
 # --- SQLite persistence (no-cost) ---
 DB_PATH = os.getenv("SQLITE_PATH", os.path.join(STATIC_DIR, "dev.sqlite"))
-engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+engine = create_engine(
+    f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False}
+)
 # Keep attributes available after commit to avoid DetachedInstanceError when accessed
 # outside the session context (e.g., after a `with SessionLocal()` block).
 SessionLocal = sessionmaker(
@@ -158,6 +214,7 @@ SessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 Base = declarative_base()
+
 
 class JobORM(Base):
     __tablename__ = "jobs"
@@ -169,11 +226,13 @@ class JobORM(Base):
     height_cm = Column(Float)
     error = Column(Text)
 
+
 class AssetORM(Base):
     __tablename__ = "assets"
     object_key = Column(String, primary_key=True)
     kind = Column(String)  # photo | mesh
     created_at = Column(DateTime, nullable=False)
+
 
 Base.metadata.create_all(engine)
 
@@ -296,7 +355,9 @@ def _fail_safe(job_id: str, delay_seconds: int = 12):
                 job.output_key = _make_key("outputs", f"{job.id}.glb")
                 if not _s3:
                     placeholder = b"placeholder glb content (replace with real .glb)"
-                    put_object(job.output_key, placeholder, content_type="model/gltf-binary")
+                    put_object(
+                        job.output_key, placeholder, content_type="model/gltf-binary"
+                    )
             db.add(job)
             db.commit()
 
@@ -309,29 +370,61 @@ def _maybe_delete_input(input_key: Optional[str]):
         delete_object(input_key)
 
 
-@app.post("/uploads")
+# Height validation constants
+HEIGHT_MIN_CM = 50.0
+HEIGHT_MAX_CM = 300.0
+
+
+def validate_height_cm(height_cm: Optional[float]) -> Optional[float]:
+    """Validate height is within acceptable range (50-300 cm)."""
+    if height_cm is None:
+        return None
+    if not (HEIGHT_MIN_CM <= height_cm <= HEIGHT_MAX_CM):
+        raise ValueError(
+            f"Height must be between {HEIGHT_MIN_CM} and {HEIGHT_MAX_CM} cm"
+        )
+    return height_cm
+
+
+@app.post("/uploads", dependencies=[Depends(verify_api_key)])
 async def create_upload(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     height_cm: Optional[float] = Form(default=None),
     customer_id: Optional[str] = Form(default=None),
 ):
+    # Validate height
+    try:
+        height_cm = validate_height_cm(height_cm)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
     # Save input
     raw = await file.read()
     job_id = str(uuid.uuid4())
     input_key = _make_key("inputs", f"{job_id}_{file.filename}")
-    put_object(input_key, raw, content_type=file.content_type or "application/octet-stream")
+    put_object(
+        input_key, raw, content_type=file.content_type or "application/octet-stream"
+    )
 
     # Create job
     with SessionLocal() as db:
-        db.add(AssetORM(object_key=input_key, kind="photo", created_at=datetime.now(timezone.utc)))
-        db.add(JobORM(
-            id=job_id, 
-            status="queued", 
-            created_at=datetime.now(timezone.utc), 
-            input_key=input_key, 
-            height_cm=height_cm
-        ))
+        db.add(
+            AssetORM(
+                object_key=input_key,
+                kind="photo",
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+        db.add(
+            JobORM(
+                id=job_id,
+                status="queued",
+                created_at=datetime.now(timezone.utc),
+                input_key=input_key,
+                height_cm=height_cm,
+            )
+        )
         db.commit()
 
     # Simulate processing (replace with call to worker service)
@@ -344,7 +437,7 @@ async def create_upload(
     return JSONResponse({"job_id": job_id, "status": "queued"})
 
 
-@app.get("/jobs/{job_id}")
+@app.get("/jobs/{job_id}", dependencies=[Depends(verify_api_key)])
 def get_job(job_id: str):
     with SessionLocal() as db:
         job = db.get(JobORM, job_id)
@@ -367,7 +460,7 @@ def get_job(job_id: str):
     }
 
 
-@app.post("/jobs/{job_id}/callback")
+@app.post("/jobs/{job_id}/callback", dependencies=[Depends(verify_api_key)])
 def job_callback(job_id: str, payload: dict):
     with SessionLocal() as db:
         job = db.get(JobORM, job_id)
@@ -381,7 +474,13 @@ def job_callback(job_id: str, payload: dict):
             job.output_key = output_key
             # Idempotent insert: only add asset if it doesn't already exist
             if not db.get(AssetORM, output_key):
-                db.add(AssetORM(object_key=output_key, kind="mesh", created_at=datetime.now(timezone.utc)))
+                db.add(
+                    AssetORM(
+                        object_key=output_key,
+                        kind="mesh",
+                        created_at=datetime.now(timezone.utc),
+                    )
+                )
         db.add(job)
         db.commit()
     if job.status == "completed":
@@ -405,7 +504,11 @@ def _forward_app_callback(job_id: str, output_key: Optional[str]):
         with httpx.Client(timeout=20.0) as client:
             client.post(
                 f"{APP_CALLBACK_URL.rstrip('/')}/internal/model-run-callback",
-                json={"job_id": job_id, "status": "completed", "output_key": output_key},
+                json={
+                    "job_id": job_id,
+                    "status": "completed",
+                    "output_key": output_key,
+                },
                 headers={"X-Callback-Secret": MODEL_CALLBACK_SECRET},
             )
     except Exception as e:
@@ -416,7 +519,7 @@ class PresignRequest(BaseModel):
     files: list[dict]
 
 
-@app.post("/presign")
+@app.post("/presign", dependencies=[Depends(verify_api_key)])
 def presign(req: PresignRequest):
     uploads = []
     for f in req.files:
@@ -427,35 +530,48 @@ def presign(req: PresignRequest):
                 post = _s3.generate_presigned_post(
                     Bucket=S3_BUCKET,
                     Key=key,
-                    Fields={"Content-Type": f.get("contentType") or "application/octet-stream"},
-                    Conditions=[["content-length-range", 1, int(f.get("size") or 10_000_000)]],
+                    Fields={
+                        "Content-Type": f.get("contentType")
+                        or "application/octet-stream"
+                    },
+                    Conditions=[
+                        ["content-length-range", 1, int(f.get("size") or 10_000_000)]
+                    ],
                     ExpiresIn=3600,
                 )
-                uploads.append({
-                    "object_key": key,
-                    "url": post["url"],
-                    "fields": post["fields"],
-                })
+                uploads.append(
+                    {
+                        "object_key": key,
+                        "url": post["url"],
+                        "fields": post["fields"],
+                    }
+                )
                 continue
             except Exception as e:
                 logger.warning("S3 presign failed, falling back to dev upload: %s", e)
         # Dev/local fallback: upload via backend
-        uploads.append({
-            "object_key": key,
-            "dev": True,
-            "url": "/dev/upload",
-            "fields": {"key": key},
-        })
+        uploads.append(
+            {
+                "object_key": key,
+                "dev": True,
+                "url": "/dev/upload",
+                "fields": {"key": key},
+            }
+        )
     return {"uploads": uploads}
 
 
-@app.post("/dev/upload")
+@app.post("/dev/upload", dependencies=[Depends(verify_api_key)])
 async def dev_upload(file: UploadFile = File(...), key: str = Form(...)):
     raw = await file.read()
     put_object(key, raw, content_type=file.content_type or "application/octet-stream")
     try:
         with SessionLocal() as db:
-            db.add(AssetORM(object_key=key, kind="photo", created_at=datetime.now(timezone.utc)))
+            db.add(
+                AssetORM(
+                    object_key=key, kind="photo", created_at=datetime.now(timezone.utc)
+                )
+            )
             db.commit()
     except Exception:
         pass
@@ -467,8 +583,17 @@ class EnqueueRequest(BaseModel):
     input_key: str
     height_cm: Optional[float] = None
 
+    @field_validator("height_cm")
+    @classmethod
+    def validate_height(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and not (HEIGHT_MIN_CM <= v <= HEIGHT_MAX_CM):
+            raise ValueError(
+                f"height_cm must be between {HEIGHT_MIN_CM} and {HEIGHT_MAX_CM}"
+            )
+        return v
 
-@app.post("/enqueue")
+
+@app.post("/enqueue", dependencies=[Depends(verify_api_key)])
 def enqueue_job(req: EnqueueRequest, background_tasks: BackgroundTasks):
     # Idempotent create-or-update behaviour
     dispatch = False
@@ -510,7 +635,9 @@ def enqueue_job(req: EnqueueRequest, background_tasks: BackgroundTasks):
             db.commit()
             dispatch = True
     if dispatch:
-        background_tasks.add_task(_enqueue_worker, req.job_id, req.input_key, req.height_cm)
+        background_tasks.add_task(
+            _enqueue_worker, req.job_id, req.input_key, req.height_cm
+        )
         if JOB_FAILSAFE_SECONDS > 0:
             background_tasks.add_task(_fail_safe, req.job_id, JOB_FAILSAFE_SECONDS)
     return {"job_id": req.job_id, "status": job.status}

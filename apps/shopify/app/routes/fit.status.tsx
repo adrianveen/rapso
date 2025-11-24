@@ -26,7 +26,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           await prisma.modelRun.update({ where: { id: jobId }, data: { status, meshObjectKey: outputKey || undefined } });
         }
       }
-    } catch {}
+    } catch (err) {
+      // Log error for debugging but don't fail the request
+      console.error("[fit.status] Error reconciling job status from backend:", err);
+    }
   }
   const outputUrl = outputKey ? `/apps/rapso/assets/${outputKey}` : null;
   return json(

@@ -1,7 +1,32 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import crypto from "node:crypto";
 import prisma from "../db.server";
 import shopify, { sessionStorage } from "../shopify.server";
+
+/**
+ * Timing-safe comparison of two strings to prevent timing attacks.
+ * Returns true if the strings are equal, false otherwise.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (typeof a !== "string" || typeof b !== "string") {
+    return false;
+  }
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  // crypto.timingSafeEqual requires same length; pad shorter buffer
+  if (bufA.length !== bufB.length) {
+    // Still perform comparison to avoid length-based timing leak
+    const maxLen = Math.max(bufA.length, bufB.length);
+    const paddedA = Buffer.alloc(maxLen);
+    const paddedB = Buffer.alloc(maxLen);
+    bufA.copy(paddedA);
+    bufB.copy(paddedB);
+    crypto.timingSafeEqual(paddedA, paddedB);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 async function updateCustomerMetafield(shop: string, customerId: string, payload: any) {
   // Try to find an offline access token from Prisma Session table
@@ -41,7 +66,8 @@ async function updateCustomerMetafield(shop: string, customerId: string, payload
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const secret = request.headers.get("x-callback-secret") || request.headers.get("X-Callback-Secret");
-  if (!secret || secret !== process.env.MODEL_CALLBACK_SECRET) {
+  const expectedSecret = process.env.MODEL_CALLBACK_SECRET;
+  if (!secret || !expectedSecret || !timingSafeEqual(secret, expectedSecret)) {
     return json({ error: "unauthorized" }, { status: 401 });
   }
   const body = await request.json().catch(() => ({}));
@@ -79,7 +105,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             shouldPromote = false; // a newer run is already active
           }
           // If the currently active run is older or missing, allow promotion
-        } catch {}
+        } catch (err) {
+          // Log error for debugging but allow promotion to proceed
+          console.error("[model-run-callback] Error checking active model run:", err);
+        }
       }
 
       let profile = existingProfile;

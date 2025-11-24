@@ -3,7 +3,35 @@ import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { env } from "../utils/env.server";
 
+// Rate limiting with TTL-based cleanup to prevent memory leaks
+const RATE_LIMIT_WINDOW_MS = 10_000; // 10 seconds
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000; // Clean up every minute
+const RATE_LIMIT_MAX_ENTRIES = 10_000; // Max entries before forced cleanup
+
 const presignRate = new Map<string, number>();
+let lastCleanup = Date.now();
+
+/**
+ * Clean up expired rate limit entries to prevent memory leaks.
+ * Runs periodically or when the map exceeds max entries.
+ */
+function cleanupRateLimitMap(): void {
+  const now = Date.now();
+  const shouldCleanup =
+    now - lastCleanup > RATE_LIMIT_CLEANUP_INTERVAL_MS ||
+    presignRate.size > RATE_LIMIT_MAX_ENTRIES;
+
+  if (!shouldCleanup) return;
+
+  lastCleanup = now;
+  const cutoff = now - RATE_LIMIT_WINDOW_MS;
+
+  for (const [key, timestamp] of presignRate) {
+    if (timestamp < cutoff) {
+      presignRate.delete(key);
+    }
+  }
+}
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   // Enforce App Proxy HMAC
@@ -20,11 +48,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!(size > 0 && size <= MAX_BYTES)) return json({ error: "invalid_size" }, { status: 400 });
   }
   // Simple rate limit per identity (logged-in customer or guest cookie)
+  // with periodic cleanup to prevent memory leaks
+  cleanupRateLimitMap();
+
   const url = new URL(request.url);
   const who = url.searchParams.get("logged_in_customer_id") || (request.headers.get("cookie") || "").slice(0, 40);
   const now = Date.now();
   const last = who ? presignRate.get(who) || 0 : 0;
-  if (who && now - last < 10_000) {
+  if (who && now - last < RATE_LIMIT_WINDOW_MS) {
     return json({ error: "rate_limited" }, { status: 429 });
   }
   if (who) presignRate.set(who, now);

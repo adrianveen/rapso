@@ -1,10 +1,11 @@
+import logging
 import os
+import re
+import shlex
 import subprocess
 import tempfile
 from typing import Optional
 
-import logging
-import os
 import trimesh
 
 logger = logging.getLogger("rapso-worker")
@@ -12,13 +13,17 @@ logger = logging.getLogger("rapso-worker")
 
 def _have_cli(cmd: list[str]) -> bool:
     try:
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        subprocess.run(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False
+        )
         return True
     except Exception:
         return False
 
 
-def generate_glb_from_image(input_image_path: str, output_glb_path: str, height_cm: Optional[float] = None) -> None:
+def generate_glb_from_image(
+    input_image_path: str, output_glb_path: str, height_cm: Optional[float] = None
+) -> None:
     """Attempt to run a TripoSR/SF3D-style pipeline to produce a GLB.
 
     Strategy:
@@ -34,7 +39,17 @@ def generate_glb_from_image(input_image_path: str, output_glb_path: str, height_
     env_cmd = os.environ.get("TRIPOSR_CMD")
     tried = []
     if env_cmd:
-        cmd = env_cmd.split()
+        # Use shlex for safe parsing; validate no shell metacharacters
+        # Block common injection patterns: ; | & $ ` \ " ' < > ( ) { } [ ] ! ~
+        if re.search(r'[;|&$`\\"<>(){}\[\]!~]', env_cmd):
+            raise ValueError(
+                f"TRIPOSR_CMD contains disallowed shell metacharacters: {env_cmd!r}"
+            )
+        cmd = shlex.split(env_cmd)
+        if not cmd or not os.path.isabs(cmd[0]):
+            raise ValueError(
+                f"TRIPOSR_CMD must be an absolute path to an executable: {env_cmd!r}"
+            )
         tried.append("TRIPOSR_CMD")
     else:
         # Common guesses
@@ -60,8 +75,10 @@ def generate_glb_from_image(input_image_path: str, output_glb_path: str, height_
         # TripoSR expects positional image path and flags for output dir and format.
         full = cmd + [
             input_image_path,
-            "--output-dir", out_dir,
-            "--model-save-format", "glb",
+            "--output-dir",
+            out_dir,
+            "--model-save-format",
+            "glb",
         ]
         logger.info("Running TripoSR: %s", " ".join(full))
         try:
@@ -91,9 +108,9 @@ def generate_glb_from_image(input_image_path: str, output_glb_path: str, height_
             src = candidate_obj or candidate_ply
             if src:
                 logger.info("Converting %s to GLB via trimesh", os.path.basename(src))
-                mesh = trimesh.load(src, force='mesh')
+                mesh = trimesh.load(src, force="mesh")
                 glb_bytes = trimesh.exchange.gltf.export_glb(mesh.scene())
-                with open(output_glb_path, 'wb') as f:
+                with open(output_glb_path, "wb") as f:
                     f.write(glb_bytes)
                 return
             raise FileNotFoundError("TripoSR produced no mesh we can convert to .glb")
