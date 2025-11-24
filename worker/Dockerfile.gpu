@@ -3,41 +3,43 @@ FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
 
 # Minimal deps
 ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+  PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 python3-pip python3-venv python3-dev ca-certificates git \
-      build-essential cmake ninja-build pkg-config \
-      libgl1 libegl1 libglib2.0-0 libxext6 libsm6 libxrender1 && \
-    rm -rf /var/lib/apt/lists/*
+  python3 python3-pip python3-venv python3-dev ca-certificates git curl \
+  build-essential cmake ninja-build pkg-config \
+  libgl1 libegl1 libglib2.0-0 libxext6 libsm6 libxrender1 && \
+  rm -rf /var/lib/apt/lists/*
 
 # Provide `python` shim for tools expecting it
 RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# Install uv package manager
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Target RTX 2060 (Turing, SM 7.5) for CUDA extensions like torchmcubes
 ENV CMAKE_ARGS="-DCMAKE_CUDA_ARCHITECTURES=75"
 ENV TORCH_CUDA_ARCH_LIST="7.5"
 
-# Upgrade pip and install FastAPI+Uvicorn, then PyTorch cu121 wheels
-RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    python3 -m pip install --no-cache-dir \
-      fastapi uvicorn[standard] httpx && \
-    python3 -m pip install --no-cache-dir \
-      numpy pillow scipy mediapipe opencv-python-headless trimesh ninja && \
-    python3 -m pip install --no-cache-dir \
-      --index-url https://download.pytorch.org/whl/cu121 \
-      torch torchvision torchaudio
+WORKDIR /app
+
+# Copy project files for uv
+COPY pyproject.toml uv.lock* ./
+
+# Install base dependencies with uv, then GPU-specific packages
+RUN uv sync --frozen --no-dev --no-install-project && \
+  uv pip install --index-url https://download.pytorch.org/whl/cu121 \
+  torch torchvision torchaudio
 
 # TripoSR: clone source (repo is not pip-installable). Safe no-op if network blocked.
 RUN git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git /opt/triposr || true
-RUN python3 -m pip install --no-cache-dir scikit-build pybind11 && \
-    (test -f /opt/triposr/requirements.txt && python3 -m pip install --no-cache-dir -r /opt/triposr/requirements.txt || true) && \
-    python3 -m pip install --no-cache-dir rembg xatlas einops omegaconf transformers==4.35.0 huggingface-hub imageio[ffmpeg] moderngl && \
-    (python3 -m pip install --no-cache-dir onnxruntime-gpu || python3 -m pip install --no-cache-dir onnxruntime)
-RUN python3 -m pip install --no-cache-dir git+https://github.com/tatsy/torchmcubes.git
+RUN uv pip install scikit-build pybind11 && \
+  (test -f /opt/triposr/requirements.txt && uv pip install -r /opt/triposr/requirements.txt || true) && \
+  uv pip install rembg xatlas einops omegaconf transformers==4.35.0 huggingface-hub imageio[ffmpeg] moderngl && \
+  (uv pip install onnxruntime-gpu || uv pip install onnxruntime)
+RUN uv pip install git+https://github.com/tatsy/torchmcubes.git
 ENV TRIPOSR_CMD="python3 /opt/triposr/run.py"
 
-WORKDIR /app
 COPY . .
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9000"]
+CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9000"]
