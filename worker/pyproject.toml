@@ -2,7 +2,7 @@
 name = "worker"
 version = "0.1.0"
 description = "Rapso worker - GPU/CPU service for 3D model inference"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "fastapi==0.115.5",
     "uvicorn[standard]==0.32.1",

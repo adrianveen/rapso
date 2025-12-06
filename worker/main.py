@@ -3,7 +3,6 @@ import logging
 import os
 import socket
 import tempfile
-import time
 from typing import Optional
 from urllib.parse import urlparse
 
